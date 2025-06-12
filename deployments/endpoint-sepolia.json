@@ -1,0 +1,22 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "lzChainId": 10161,
+  "endpoint": "0xb753eE3c413D8FBBed1FcFfFeEC2B378d18CAb05",
+  "library": "0x5A71C7D13DD2F443e17FA4153dE20258340Ee33b",
+  "deployer": "0xc285D7192174486f038A4de931cb4F99DdaeF4C3",
+  "timestamp": "2025-06-12T06:17:35.854Z",
+  "setupComplete": true,
+  "libraryVersion": "1",
+  "setupTimestamp": "2025-06-12T06:20:49.136Z",
+  "sender": "0x71dC58aF0aeD3dB318144a79077088B7b7fEc1F9",
+  "receiver": "0xad917C94e8Ec97Dd88017Bb224192EddD417Ce57",
+  "contractsTimestamp": "2025-06-12T06:22:12.137Z",
+  "bridgeSetup": {
+    "remoteNetwork": "tan",
+    "remoteLzChainId": 4442,
+    "remoteReceiver": "0xf9abcd99e0f1A6e9E346822533A4f6ec1891E034",
+    "setupComplete": true,
+    "setupTimestamp": "2025-06-12T06:23:37.791Z"
+  }
+}

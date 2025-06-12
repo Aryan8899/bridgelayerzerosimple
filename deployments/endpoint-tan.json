@@ -1,0 +1,22 @@
+{
+  "network": "unknown",
+  "chainId": 4442,
+  "lzChainId": 4442,
+  "endpoint": "0xB32AAB1b59f4D9505f0Af6C92689fbB8E616CaBa",
+  "library": "0x6d5f0ea873Fb1b3C956f7662BF64F5b4B0734fB8",
+  "deployer": "0xc285D7192174486f038A4de931cb4F99DdaeF4C3",
+  "timestamp": "2025-06-12T06:18:26.737Z",
+  "setupComplete": true,
+  "libraryVersion": "1",
+  "setupTimestamp": "2025-06-12T06:21:33.983Z",
+  "sender": "0xd43C21576E7911b3E4e43880f57299a7ae6afFE8",
+  "receiver": "0xf9abcd99e0f1A6e9E346822533A4f6ec1891E034",
+  "contractsTimestamp": "2025-06-12T06:22:57.083Z",
+  "bridgeSetup": {
+    "remoteNetwork": "sepolia",
+    "remoteLzChainId": 10161,
+    "remoteReceiver": "0xad917C94e8Ec97Dd88017Bb224192EddD417Ce57",
+    "setupComplete": true,
+    "setupTimestamp": "2025-06-12T06:24:21.357Z"
+  }
+}
