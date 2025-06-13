@@ -1,22 +1,46 @@
 {
-  "network": "sepolia",
-  "chainId": 11155111,
-  "lzChainId": 10161,
-  "endpoint": "0xb753eE3c413D8FBBed1FcFfFeEC2B378d18CAb05",
-  "library": "0x5A71C7D13DD2F443e17FA4153dE20258340Ee33b",
-  "deployer": "0xc285D7192174486f038A4de931cb4F99DdaeF4C3",
-  "timestamp": "2025-06-12T06:17:35.854Z",
+  "contracts": {
+    "library": "0x9d8F750e390312cC19ad0B27A9f221CcBCb817b7",
+    "endpoint": "0xfc9dF329734F6A5Baed09C21497A3B2E4BdF5F48",
+    "uln": "0xfAc64Df1A2855dF3CA8d719AeB9E55A0f8D93a3E",
+    "relayer": "0x422f7EaAa675b82073da327AF3b0d75E03FdE2D8",
+    "sender": "0x22d4E84aBc16442c64b800BB3E5AFe8551b5e23e",
+    "receiver": "0xd02DE74Ed7De89B0D5794a9845eDaDee0689bAbf"
+  },
   "setupComplete": true,
   "libraryVersion": "1",
-  "setupTimestamp": "2025-06-12T06:20:49.136Z",
-  "sender": "0x71dC58aF0aeD3dB318144a79077088B7b7fEc1F9",
-  "receiver": "0xad917C94e8Ec97Dd88017Bb224192EddD417Ce57",
-  "contractsTimestamp": "2025-06-12T06:22:12.137Z",
+  "setupTimestamp": "2025-06-13T03:29:59.473Z",
+  "gasOptionsUsed": {
+    "maxFeePerGas": {
+      "type": "BigNumber",
+      "hex": "0x6b49d320"
+    },
+    "maxPriorityFeePerGas": {
+      "type": "BigNumber",
+      "hex": "0x62590080"
+    }
+  },
+  "contractsDeployed": true,
+  "contractsTimestamp": "2025-06-13T03:32:26.321Z",
+  "contractsGasOptions": {
+    "maxFeePerGas": "1800000211",
+    "maxPriorityFeePerGas": "1650000000"
+  },
   "bridgeSetup": {
     "remoteNetwork": "tan",
     "remoteLzChainId": 4442,
-    "remoteReceiver": "0xf9abcd99e0f1A6e9E346822533A4f6ec1891E034",
+    "remoteReceiver": "0x98709773f5b420b7dcDed8336a4D8c2a0b013020",
     "setupComplete": true,
-    "setupTimestamp": "2025-06-12T06:23:37.791Z"
+    "setupTimestamp": "2025-06-13T03:34:11.608Z",
+    "gasOptionsUsed": {
+      "maxFeePerGas": {
+        "type": "BigNumber",
+        "hex": "0x6b49d2a3"
+      },
+      "maxPriorityFeePerGas": {
+        "type": "BigNumber",
+        "hex": "0x62590080"
+      }
+    }
   }
 }

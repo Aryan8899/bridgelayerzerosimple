@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Endpoint is Ownable, ILayerZeroEndpoint {
     uint16 public immutable chainId;
+    address public uln;
 
     // installed libraries and reserved versions
     uint16 public constant BLOCK_VERSION = 65535;
@@ -94,6 +95,10 @@ contract Endpoint is Ownable, ILayerZeroEndpoint {
         uint64 nonce = ++outboundNonce[_dstChainId][msg.sender];
         _getSendLibrary(uaConfig).send{value: msg.value}(msg.sender, nonce, _dstChainId, _destination, _payload, _refundAddress, _zroPaymentAddress, _adapterParams);
     }
+
+    function setULN(address _uln) external {
+    uln = _uln;
+}
 
     //---------------------------------------------------------------------------
     // authenticated Library (msg.sender) Calls to pass through Endpoint to UA (dstAddress)

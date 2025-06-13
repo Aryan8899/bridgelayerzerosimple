@@ -59,6 +59,8 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     mapping(address => uint) public relayerQuotedFees;
     uint public treasuryNativeFees;
     uint public treasuryZROFees;
+    address public relayer;
+
 
     // User Application
     mapping(address => mapping(uint16 => ApplicationConfiguration)) public appConfig; // app address => chainId => config
@@ -66,6 +68,7 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     mapping(uint16 => mapping(uint16 => bytes)) public defaultAdapterParams;
 
     // Validation
+
     mapping(uint16 => mapping(uint16 => address)) public inboundProofLibrary; // chainId => library Id => inboundProofLibrary contract
     mapping(uint16 => uint16) public maxInboundProofLibrary; // chainId => inboundProofLibrary
     mapping(uint16 => mapping(uint16 => bool)) public supportedOutboundProof; // chainId => outboundProofType => enabled
@@ -227,6 +230,11 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
             require(success, "LayerZero: failed to refund");
         }
     }
+
+    function setRelayer(address _relayer) external {
+    relayer = _relayer;
+}
+
 
     // Can be called by any address to update a block header
     // can only upload new block data or the same block data with more confirmations

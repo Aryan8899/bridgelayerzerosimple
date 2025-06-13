@@ -1,95 +1,82 @@
-// scripts/01_deploy.js
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 const fs = require("fs");
+
+async function deployWithGasEstimation(label, factory, args = [], overrides = {}) {
+  const estimatedGas = await factory.signer.estimateGas(factory.getDeployTransaction(...args));
+  const gasLimit = estimatedGas.mul(110).div(100); // Add 10% buffer
+  const contract = await factory.deploy(...args, {
+    ...overrides,
+    gasLimit,
+  });
+  const receipt = await contract.deployTransaction.wait();
+  console.log(`✅ ${label} deployed to: ${contract.address}`);
+  console.log(`Gas used: ${receipt.gasUsed.toString()}`);
+  return { contract, gasUsed: receipt.gasUsed };
+}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying contracts with account:", deployer.address);
-  console.log("Account balance:", (await deployer.getBalance()).toString());
+  console.log("Deploying with:", deployer.address);
+  console.log("Balance:", (await deployer.getBalance()).toString());
 
-  // LayerZero-style chain IDs
   const CHAIN_IDS = {
     sepolia: 10161,
-    tan: 4442
+    tan: 4442,
   };
 
-  // Detect network
-  const network = await ethers.provider.getNetwork();
-  console.log("Current network:", network.name, "Chain ID:", network.chainId);
+  const currentNetwork = await ethers.provider.getNetwork();
+  const lzChainId = currentNetwork.chainId === 11155111 ? CHAIN_IDS.sepolia : CHAIN_IDS.tan;
+  const networkName = currentNetwork.chainId === 11155111 ? "sepolia" : "tan";
 
-  // Pick lzChainId based on chain
-  let lzChainId;
-  let filenameNetworkName;
+  const gasOverrides = {
+    maxFeePerGas: ethers.utils.parseUnits("0.5", "gwei"),
+    maxPriorityFeePerGas: ethers.utils.parseUnits("0.05", "gwei"),
+  };
 
-  if (network.chainId.toString() === "11155111") {
-    lzChainId = CHAIN_IDS.sepolia;
-    filenameNetworkName = "sepolia";
-  } else if (network.chainId.toString() === "4442") {
-    lzChainId = CHAIN_IDS.tan;
-    filenameNetworkName = "tan";
-  } else {
-    throw new Error("Unsupported network chainId: " + network.chainId);
-  }
+  const deploymentData = {
+    contracts: {} // ✅ will hold all contract addresses
+  };
 
-  // 1. Deploy MockMessagingLibrary
-  console.log("Deploying MockMessagingLibrary...");
-  const MockMessagingLibrary = await ethers.getContractFactory("MockMessagingLibrary");
-  const library = await MockMessagingLibrary.deploy();
-  await library.deployed();
-  console.log("✅ MockMessagingLibrary deployed to:", library.address);
+ 
+  const MockLib = await ethers.getContractFactory("MockMessagingLibrary");
+  const { contract: mockLib, gasUsed: g1 } = await deployWithGasEstimation("MockMessagingLibrary", MockLib, [], gasOverrides);
+  deploymentData.contracts.library = mockLib.address;
 
-  // 2. Deploy Endpoint
-  console.log("Deploying Endpoint...");
+ 
   const Endpoint = await ethers.getContractFactory("Endpoint");
-  const endpoint = await Endpoint.deploy(lzChainId);
-  await endpoint.deployed();
-  console.log("✅ Endpoint deployed to:", endpoint.address);
+  const { contract: endpoint, gasUsed: g2 } = await deployWithGasEstimation("Endpoint", Endpoint, [lzChainId], gasOverrides);
+  deploymentData.contracts.endpoint = endpoint.address;
 
-  // 3. Deploy UltraLightNode
-  console.log("Deploying UltraLightNode...");
-  const ULN = await ethers.getContractFactory("UltraLightNode");
-  const uln = await ULN.deploy();
-  await uln.deployed();
-  console.log("✅ UltraLightNode deployed to:", uln.address);
+ 
+  const UltraLightNode = await ethers.getContractFactory("UltraLightNode");
+  const { contract: uln, gasUsed: g3 } = await deployWithGasEstimation("UltraLightNode", UltraLightNode, [endpoint.address], gasOverrides);
+  deploymentData.contracts.uln = uln.address;
 
-  // 4. Deploy Relayer
-  console.log("Deploying Relayer...");
+  
   const Relayer = await ethers.getContractFactory("Relayer");
-  const relayer = await Relayer.deploy();
-  await relayer.deployed();
-  console.log("✅ Relayer deployed to:", relayer.address);
+  const { contract: relayer, gasUsed: g4 } = await deployWithGasEstimation("Relayer", Relayer, [], gasOverrides);
+  deploymentData.contracts.relayer = relayer.address;
 
-  // 5. Initialize Relayer with ULN
-  const tx1 = await relayer.initialize(uln.address);
-  await tx1.wait();
-  console.log("✅ Relayer initialized with ULN");
+  
+  const tx1 = await uln.setRelayer(relayer.address, gasOverrides);
+  const rc1 = await tx1.wait();
+  console.log(`✅ ULN setRelayer: Gas used: ${rc1.gasUsed.toString()}`);
 
-  // 6. Connect ULN to Relayer and Endpoint
-  await uln.setRelayer(relayer.address);
-  await uln.setEndpoint(endpoint.address);
-  console.log("✅ ULN linked to Relayer and Endpoint");
 
-  // 7. Connect Endpoint to ULN
-  await endpoint.setULN(uln.address);
-  console.log("✅ Endpoint linked to ULN");
+  const tx2 = await endpoint.setULN(uln.address, gasOverrides);
+  const rc2 = await tx2.wait();
+  console.log(`✅ Endpoint linked to ULN: Gas used: ${rc2.gasUsed.toString()}`);
 
-  // 8. Save deployment info
-  const deploymentInfo = {
-    network: network.name,
-    chainId: network.chainId,
-    lzChainId: lzChainId,
-    deployer: deployer.address,
-    library: library.address,
-    endpoint: endpoint.address,
-    uln: uln.address,
-    relayer: relayer.address,
-    timestamp: new Date().toISOString()
-  };
+  
+  const totalGas = g1.add(g2).add(g3).add(g4).add(rc1.gasUsed).add(rc2.gasUsed);
+  const deploymentPath = `deployments/endpoint-${networkName}.json`;
 
-  const fileName = `deployments/endpoint-${filenameNetworkName}.json`;
+  
   fs.mkdirSync("deployments", { recursive: true });
-  fs.writeFileSync(fileName, JSON.stringify(deploymentInfo, null, 2));
-  console.log(`✅ Deployment info saved to ${fileName}`);
+  fs.writeFileSync(deploymentPath, JSON.stringify(deploymentData, null, 2));
+  console.log(`\n📦 Saved to: ${deploymentPath}`);
+  console.log(`💸 Total estimated gas: ${totalGas.toString()}`);
+  console.log(`💰 Total cost (ETH): ~${ethers.utils.formatUnits(totalGas.mul(gasOverrides.maxFeePerGas), "ether")} ETH`);
 }
 
 main().catch((error) => {

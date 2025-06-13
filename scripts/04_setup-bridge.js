@@ -1,100 +1,176 @@
-// SOLUTION 1: Updated 04_setup-bridge.js with corrected logic
-// scripts/04_setup-bridge.js
+
 const { ethers } = require("hardhat");
 const fs = require('fs');
 
 async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Setting up bridge connection with account:", deployer.address);
-
-    // Get network info
+   
     const network = await ethers.provider.getNetwork();
     console.log("Current network:", network.name, "Chain ID:", network.chainId);
-
-let filenameNetworkName;
-if (network.chainId.toString() === "4442") {
-    filenameNetworkName = "tan";
-} else {
-    filenameNetworkName = network.name || network.chainId.toString();
-}
     
-    // Load current network deployment
+    let filenameNetworkName;
+    if (network.chainId.toString() === "4442") {
+        filenameNetworkName = "tan";
+    } else {
+        filenameNetworkName = network.name || network.chainId.toString();
+    }
+
+    
+    async function getGasPrice() {
+        try {
+            const feeData = await ethers.provider.getFeeData();
+            console.log("Current fee data:", {
+                gasPrice: feeData.gasPrice?.toString(),
+                maxFeePerGas: feeData.maxFeePerGas?.toString(),
+                maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+            });
+            
+           
+            if (feeData.maxFeePerGas) {
+                return {
+                    maxFeePerGas: feeData.maxFeePerGas.mul(120).div(100), // 20% buffer
+                    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.mul(110).div(100) || ethers.utils.parseUnits("2", "gwei")
+                };
+            } else if (feeData.gasPrice) {
+                
+                return {
+                    gasPrice: feeData.gasPrice.mul(120).div(100) // 20% buffer
+                };
+            } else {
+             
+                return {
+                    gasPrice: ethers.utils.parseUnits("50", "gwei")
+                };
+            }
+        } catch (error) {
+            console.log("Error getting fee data, using fallback gas price:", error.message);
+            return {
+                gasPrice: ethers.utils.parseUnits("50", "gwei")
+            };
+        }
+    }
+
+    const gasOptions = await getGasPrice();
+    console.log("Using gas options:", gasOptions);
+    
+   
     const currentFileName = `deployments/endpoint-${filenameNetworkName}.json`;
     if (!fs.existsSync(currentFileName)) {
         throw new Error(`Current deployment file ${currentFileName} not found.`);
     }
-
+    
     const currentDeployment = JSON.parse(fs.readFileSync(currentFileName, 'utf8'));
     console.log("Current deployment:", currentDeployment);
-
-    // Determine remote network and get the actual deployed chain IDs
-    let remoteNetwork, remoteFileName, remoteLzChainId;
     
-    if (network.chainId === 11155111) { // Sepolia
-        remoteNetwork = "tan"; // This is how Tan was saved
-        remoteFileName = `deployments/endpoint-tan.json`; // Actual filename
-        remoteLzChainId = 4442; // Use the actual deployed chain ID
-    } else { // Tan (tan network)
+   
+    let senderAddress;
+    if (currentDeployment.sender) {
+        senderAddress = currentDeployment.sender;
+    } else if (currentDeployment.contracts && currentDeployment.contracts.sender) {
+        senderAddress = currentDeployment.contracts.sender;
+    } else {
+        throw new Error("Sender contract address not found in deployment file");
+    }
+    
+    console.log("Using sender address:", senderAddress);
+    
+
+    let remoteNetwork, remoteFileName, remoteLzChainId;
+    if (network.chainId === 11155111) {
+        remoteNetwork = "tan";
+        remoteFileName = `deployments/endpoint-tan.json`;
+        remoteLzChainId = 4442;
+    } else {
         remoteNetwork = "sepolia";
         remoteFileName = `deployments/endpoint-sepolia.json`;
-        remoteLzChainId = 10161; // Use the actual deployed chain ID
+        remoteLzChainId = 10161;
     }
-
-    // Try to load remote deployment
-    let remoteDeployment = null;
     
-    if (fs.existsSync(remoteFileName)) {
-        remoteDeployment = JSON.parse(fs.readFileSync(remoteFileName, 'utf8'));
-        console.log("Remote deployment found:", remoteDeployment);
-    } else {
+    // Load remote deployment info
+    if (!fs.existsSync(remoteFileName)) {
         console.log(`⚠️  Remote deployment file ${remoteFileName} not found.`);
-        console.log("You'll need to deploy on the remote network first, then run this script again.");
-        
-        // Create a placeholder with instructions
+        console.log("Please deploy the complete stack on the remote network first, then rerun this script.");
         const placeholder = {
-            remoteNetwork: remoteNetwork,
-            remoteLzChainId: remoteLzChainId,
-            remoteFileName: remoteFileName,
+            remoteNetwork,
+            remoteLzChainId,
+            remoteFileName,
             instructions: [
                 "1. Deploy the complete stack on the remote network",
-                "2. Make sure both deployment files exist",
+                "2. Ensure both deployment files exist",
                 "3. Run this setup script again"
             ]
         };
-        
         currentDeployment.bridgeSetup = placeholder;
         fs.writeFileSync(currentFileName, JSON.stringify(currentDeployment, null, 2));
         return;
     }
-
-    // Get contract instances - use fully qualified name to avoid conflicts
-    const sender = await ethers.getContractAt("contracts/Sender.sol:Sender", currentDeployment.sender);
     
-    console.log(`Setting up bridge from ${network.name || network.chainId} to ${remoteNetwork}...`);
+    const remoteDeployment = JSON.parse(fs.readFileSync(remoteFileName, 'utf8'));
+    console.log("Remote deployment found:", remoteDeployment);
     
-    // Set remote receiver address
-    console.log("Setting remote receiver address...");
+    // Get remote receiver address - handle both old and new deployment formats
+    let remoteReceiverAddress;
+    if (remoteDeployment.receiver) {
+        remoteReceiverAddress = remoteDeployment.receiver;
+    } else if (remoteDeployment.contracts && remoteDeployment.contracts.receiver) {
+        remoteReceiverAddress = remoteDeployment.contracts.receiver;
+    } else {
+        throw new Error("Remote receiver contract address not found in deployment file");
+    }
+    
+    console.log("Using remote receiver address:", remoteReceiverAddress);
+    
+    // Get contract instance
+    const sender = await ethers.getContractAt("contracts/Sender.sol:Sender", senderAddress);
+    
+    console.log(`Setting up bridge from ${filenameNetworkName} to ${remoteNetwork}...`);
     console.log(`Remote LZ Chain ID: ${remoteLzChainId}`);
-    console.log(`Remote Receiver: ${remoteDeployment.receiver}`);
-    
-    const tx = await sender.setRemote(remoteLzChainId, remoteDeployment.receiver);
-    await tx.wait();
-    console.log("✓ Remote receiver set");
+    console.log(`Remote Receiver: ${remoteReceiverAddress}`);
 
+    // Add retry logic for transactions
+    async function executeWithRetry(txFunction, description, maxRetries = 3) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                console.log(`${description} (attempt ${i + 1}/${maxRetries})`);
+                const tx = await txFunction();
+                await tx.wait();
+                console.log(`✅ ${description} completed`);
+                return tx;
+            } catch (error) {
+                console.log(`❌ ${description} failed:`, error.message);
+                if (i === maxRetries - 1) throw error;
+                
+                // Wait before retrying and get fresh gas price
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const newGasOptions = await getGasPrice();
+                Object.assign(gasOptions, newGasOptions);
+                console.log("Retrying with updated gas options:", newGasOptions);
+            }
+        }
+    }
+
+    // Set remote receiver with retry logic
+    await executeWithRetry(
+        () => sender.setRemote(remoteLzChainId, remoteReceiverAddress, gasOptions),
+        "Setting remote receiver"
+    );
+    
     // Update deployment info
     currentDeployment.bridgeSetup = {
-        remoteNetwork: remoteNetwork,
-        remoteLzChainId: remoteLzChainId,
-        remoteReceiver: remoteDeployment.receiver,
+        remoteNetwork,
+        remoteLzChainId,
+        remoteReceiver: remoteReceiverAddress,
         setupComplete: true,
-        setupTimestamp: new Date().toISOString()
+        setupTimestamp: new Date().toISOString(),
+        gasOptionsUsed: gasOptions
     };
-
+    
     fs.writeFileSync(currentFileName, JSON.stringify(currentDeployment, null, 2));
     
     console.log("🎉 Bridge setup complete!");
-    console.log(`Local Sender (${network.name || network.chainId}):`, currentDeployment.sender);
-    console.log(`Remote Receiver (${remoteNetwork}):`, remoteDeployment.receiver);
+    console.log(`Local Sender (${filenameNetworkName}):`, senderAddress);
+    console.log(`Remote Receiver (${remoteNetwork}):`, remoteReceiverAddress);
     console.log(`Remote Chain ID:`, remoteLzChainId);
 }
 
