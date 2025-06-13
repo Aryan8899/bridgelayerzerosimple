@@ -2,26 +2,43 @@
 pragma solidity ^0.7.6;
 
 import { ILayerZeroReceiver } from "./interfaces/ILayerZeroReceiver.sol";
+import "./WTAN.sol";
 
 contract Receiver is ILayerZeroReceiver {
-    string public lastReceivedMessage;
+    WTAN public wtan;
+    address public endpoint;
 
-    event ReceivedMessage(uint16 srcChainId, address from, string message);
+    constructor(address _wtan, address _endpoint) {
+        wtan = WTAN(_wtan);
+        endpoint = _endpoint;
+    }
+
+    modifier onlyEndpoint() {
+        require(msg.sender == endpoint, "Unauthorized sender");
+        _;
+    }
+
+    event NativeBridged(address indexed user, uint256 amount);
+    event NativeUnwrapped(address indexed user, uint256 amount);
 
     function lzReceive(
-        uint16 _srcChainId,
-        bytes calldata _srcAddress,
-        uint64 _nonce,
-        bytes calldata _payload
-    ) external override {
-        // Convert LayerZero address (bytes) to address
-        address from = address(uint160(uint256(keccak256(_srcAddress))));
+        uint16, bytes calldata, uint64, bytes calldata payload
+    ) external override onlyEndpoint {
+        (uint8 payloadType, address user, uint256 amount) = abi.decode(payload, (uint8, address, uint256));
 
-        // Decode the payload from bytes to string
-        string memory message = abi.decode(_payload, (string));
-
-        // Store and emit decoded message
-        lastReceivedMessage = message;
-        emit ReceivedMessage(_srcChainId, from, message);
+        if (payloadType == 1) {
+            // TAN → Sepolia: mint WTAN
+            wtan.mint(user, amount);
+            emit NativeBridged(user, amount);
+        } else if (payloadType == 2) {
+            // Sepolia → TAN: unwrap WTAN and send native
+            (bool success, ) = user.call{value: amount}("");
+            require(success, "Native transfer failed");
+            emit NativeUnwrapped(user, amount);
+        } else {
+            revert("Invalid payloadType");
+        }
     }
+
+    receive() external payable {}
 }

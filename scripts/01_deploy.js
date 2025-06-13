@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 const { ethers, network } = require("hardhat");
 const fs = require("fs");
 
@@ -34,44 +35,41 @@ async function main() {
   };
 
   const deploymentData = {
-    contracts: {} // ✅ will hold all contract addresses
+    contracts: {}
   };
 
- 
   const MockLib = await ethers.getContractFactory("MockMessagingLibrary");
   const { contract: mockLib, gasUsed: g1 } = await deployWithGasEstimation("MockMessagingLibrary", MockLib, [], gasOverrides);
   deploymentData.contracts.library = mockLib.address;
 
- 
   const Endpoint = await ethers.getContractFactory("Endpoint");
   const { contract: endpoint, gasUsed: g2 } = await deployWithGasEstimation("Endpoint", Endpoint, [lzChainId], gasOverrides);
   deploymentData.contracts.endpoint = endpoint.address;
 
- 
   const UltraLightNode = await ethers.getContractFactory("UltraLightNode");
   const { contract: uln, gasUsed: g3 } = await deployWithGasEstimation("UltraLightNode", UltraLightNode, [endpoint.address], gasOverrides);
   deploymentData.contracts.uln = uln.address;
 
-  
   const Relayer = await ethers.getContractFactory("Relayer");
   const { contract: relayer, gasUsed: g4 } = await deployWithGasEstimation("Relayer", Relayer, [], gasOverrides);
   deploymentData.contracts.relayer = relayer.address;
 
-  
   const tx1 = await uln.setRelayer(relayer.address, gasOverrides);
   const rc1 = await tx1.wait();
   console.log(`✅ ULN setRelayer: Gas used: ${rc1.gasUsed.toString()}`);
-
 
   const tx2 = await endpoint.setULN(uln.address, gasOverrides);
   const rc2 = await tx2.wait();
   console.log(`✅ Endpoint linked to ULN: Gas used: ${rc2.gasUsed.toString()}`);
 
-  
-  const totalGas = g1.add(g2).add(g3).add(g4).add(rc1.gasUsed).add(rc2.gasUsed);
+  // ✅ Deploy WTAN
+  const WTAN = await ethers.getContractFactory("WTAN");
+  const { contract: wtan, gasUsed: g5 } = await deployWithGasEstimation("WTAN", WTAN, [], gasOverrides);
+  deploymentData.contracts.wtan = wtan.address;
+
+  const totalGas = g1.add(g2).add(g3).add(g4).add(g5).add(rc1.gasUsed).add(rc2.gasUsed);
   const deploymentPath = `deployments/endpoint-${networkName}.json`;
 
-  
   fs.mkdirSync("deployments", { recursive: true });
   fs.writeFileSync(deploymentPath, JSON.stringify(deploymentData, null, 2));
   console.log(`\n📦 Saved to: ${deploymentPath}`);

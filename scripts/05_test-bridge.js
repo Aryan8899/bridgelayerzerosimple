@@ -1,6 +1,5 @@
-
 const { ethers } = require("hardhat");
-const fs = require('fs');
+const fs = require("fs");
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -9,16 +8,13 @@ async function main() {
     const network = await ethers.provider.getNetwork();
     console.log("Current network:", network.name, "Chain ID:", network.chainId);
 
-    
-    let filenameNetworkName;
-    let gasPrice;
-
+    let filenameNetworkName, gasPrice;
     if (network.chainId.toString() === "4442") {
         filenameNetworkName = "tan";
-        gasPrice = ethers.utils.parseUnits("20", "gwei"); // Custom for TAN
+        gasPrice = ethers.utils.parseUnits("20", "gwei");
     } else {
         filenameNetworkName = network.name || network.chainId.toString();
-        gasPrice = undefined; 
+        gasPrice = undefined;
     }
 
     const deploymentFileName = `deployments/endpoint-${filenameNetworkName}.json`;
@@ -26,129 +22,102 @@ async function main() {
         throw new Error(`Deployment file ${deploymentFileName} not found.`);
     }
 
-    const deploymentInfo = JSON.parse(fs.readFileSync(deploymentFileName, 'utf8'));
-
-    if (!deploymentInfo.bridgeSetup || !deploymentInfo.bridgeSetup.setupComplete) {
+    const deploymentInfo = JSON.parse(fs.readFileSync(deploymentFileName, "utf8"));
+    if (!deploymentInfo.bridgeSetup?.setupComplete) {
         throw new Error("Bridge setup not complete. Run setup-bridge.js first.");
     }
 
-   
-    let senderAddress, receiverAddress;
-    
-    if (deploymentInfo.sender) {
-        senderAddress = deploymentInfo.sender;
-    } else if (deploymentInfo.contracts && deploymentInfo.contracts.sender) {
-        senderAddress = deploymentInfo.contracts.sender;
-    } else {
-        throw new Error("Sender contract address not found in deployment file");
-    }
+    const senderAddress = deploymentInfo.contracts?.sender;
+    const receiverAddress = deploymentInfo.contracts?.receiver;
+    const wtanAddress = deploymentInfo.contracts?.wtan;
 
-    if (deploymentInfo.receiver) {
-        receiverAddress = deploymentInfo.receiver;
-    } else if (deploymentInfo.contracts && deploymentInfo.contracts.receiver) {
-        receiverAddress = deploymentInfo.contracts.receiver;
-    } else {
-        throw new Error("Receiver contract address not found in deployment file");
+    if (!senderAddress || !receiverAddress || !wtanAddress) {
+        throw new Error("Missing sender/receiver/wtan address in deployment info.");
     }
 
     console.log("Using contract addresses:");
     console.log("Sender:", senderAddress);
     console.log("Receiver:", receiverAddress);
+    console.log("WTAN:", wtanAddress);
 
-    
     const sender = await ethers.getContractAt("contracts/Sender.sol:Sender", senderAddress);
-    const receiver = await ethers.getContractAt("contracts/Receiver.sol:Receiver", receiverAddress);
+    const wtan = await ethers.getContractAt("WTAN", wtanAddress);
 
-    console.log("Contract addresses:");
-    console.log("Sender:", sender.address);
-    console.log("Receiver:", receiver.address);
-    console.log("Remote Chain ID:", deploymentInfo.bridgeSetup.remoteLzChainId);
-
-   
-    const balance = await ethers.provider.getBalance(deployer.address);
-    console.log("Account balance:", ethers.utils.formatEther(balance), "ETH");
-
-   
     const remoteChainId = deploymentInfo.bridgeSetup.remoteLzChainId;
     const chainNameMap = { 10161: "sepolia", 4442: "tan" };
     const currentChainName = chainNameMap[network.chainId] || filenameNetworkName;
-    const testMessageString = `Hello ${chainNameMap[remoteChainId] || "unknown"} from ${currentChainName} at ${new Date().toISOString()}`;
 
-    const testMessage = ethers.utils.toUtf8Bytes(testMessageString);
-    console.log("Test message:", testMessageString);
+    const balance = await ethers.provider.getBalance(deployer.address);
+    console.log("Deployer Balance:", ethers.utils.formatEther(balance), "ETH");
 
-  
-    try {
-        console.log("Getting quote for cross-chain message...");
-        // const quote = await sender.quote(remoteChainId, testMessage, false);
-        // console.log("Estimated fee:", ethers.utils.formatEther(quote), "ETH");
-    } catch {
-        console.log("Quote not available, using default fee");
-    }
+    const useNative = network.chainId.toString() === "4442"; // TAN → Sepolia: native → WTAN mint
 
-   
-    console.log("Sending test message...");
-    const tx = await sender.sendMessage(
-        remoteChainId,
-        testMessage,
-        {
+    if (useNative) {
+        console.log("⛽ Sending native TAN to Sepolia → WTAN mint...");
+
+        const tx = await sender.sendNativeToRemote(remoteChainId, {
             value: ethers.utils.parseEther("0.001"),
             ...(gasPrice ? { gasPrice } : {})
+        });
+
+        console.log("✅ TX Sent:", tx.hash);
+        const receipt = await tx.wait();
+        console.log("📦 Confirmed in block:", receipt.blockNumber);
+        console.log("⛽ Gas used:", receipt.gasUsed.toString());
+        logEvents(receipt.events);
+
+    } else {
+        const amount = ethers.utils.parseUnits("0.001", 18); // 0.001 WTAN
+        const currentWtanBalance = await wtan.balanceOf(deployer.address);
+
+        if (currentWtanBalance.lt(amount)) {
+            const currentWtanBalance = (await wtan.balanceOf(deployer.address)).toString();
+            console.log("balance is",currentWtanBalance)
+            console.log("⚠️ WTAN balance low. Minting for testing...");
+            //const currentWtanBalance = await wtan.balanceOf(deployer.address);
+            const mintTx = await wtan.mint(deployer.address, amount);
+            await mintTx.wait();
+            console.log("✅ Minted WTAN:", amount.toString());
         }
-    );
 
-    console.log("Transaction sent:", tx.hash);
-    const receipt = await tx.wait();
-    console.log("Transaction confirmed in block:", receipt.blockNumber);
-    console.log("Gas used:", receipt.gasUsed.toString());
+        console.log("🔐 Approving WTAN...");
+        const approveTx = await wtan.approve(sender.address, amount);
+        await approveTx.wait();
+        console.log("✅ Approved");
 
-   
-    console.log("\n=== Transaction Events ===");
-    const events = receipt.events || [];
-    console.log(`Found ${events.length} events:`);
-    events.forEach((event, i) => {
-        console.log(`\nEvent ${i}:`);
-        console.log("  Contract:", event.address);
-        console.log("  Event Name:", event.event || "Unknown");
-        console.log("  Topics:", event.topics);
-        if (event.args && event.args.length > 0) {
-            console.log("  Args:");
-            event.args.forEach((arg, j) => {
-                console.log(`    [${j}]:`, arg.toString());
+        console.log("🚀 Sending WTAN to TAN → Unwrap to native...");
+        const tx = await sender.bridgeWTANTo(remoteChainId, amount, {
+            ...(gasPrice ? { gasPrice } : {})
+        });
+
+        console.log("✅ TX Sent:", tx.hash);
+        const receipt = await tx.wait();
+        console.log("📦 Confirmed in block:", receipt.blockNumber);
+        console.log("⛽ Gas used:", receipt.gasUsed.toString());
+        logEvents(receipt.events);
+    }
+
+    console.log("✅ Bridge test complete.");
+}
+
+function logEvents(events = []) {
+    console.log("\n=== Events ===");
+    if (!events.length) {
+        console.log("No events found.");
+        return;
+    }
+
+    events.forEach((e, i) => {
+        console.log(`\nEvent ${i + 1}:`);
+        console.log("📍 Contract:", e.address);
+        console.log("📛 Name:", e.event || "Unknown");
+        if (e.args) {
+            Object.entries(e.args).forEach(([key, val]) => {
+                if (!isNaN(key)) return;
+                console.log(`  ${key}: ${val.toString()}`);
             });
         }
-        if (event.data && event.data !== "0x") {
-            console.log("  Data:", event.data);
-        }
     });
-
-    const messageSentEvents = events.filter(e => e.event === "MessageSent" || e.event === "SendMessage");
-    if (messageSentEvents.length > 0) {
-        console.log("\n🚀 Message sent successfully!");
-        messageSentEvents.forEach((event, i) => {
-            console.log(`SendMessage Event ${i}:`, event.args);
-        });
-    }
-
-   
-    console.log("=== Full Receipt ===");
-    console.log("Status:", receipt.status === 1 ? "SUCCESS" : "FAILED");
-    console.log("Block Number:", receipt.blockNumber);
-    console.log("Transaction Hash:", receipt.transactionHash);
-    console.log("From:", receipt.from);
-    console.log("To:", receipt.to);
-
-    
-    try {
-        console.log("\n=== Checking Stored Messages ===");
-        // const messageCount = await receiver.getMessageCount();
-        // console.log("Messages received:", messageCount.toString());
-    } catch {
-        console.log("Could not read stored messages (method may not exist)");
-    }
-
-    console.log("✅ Test completed!");
-    
 }
 
 main()
