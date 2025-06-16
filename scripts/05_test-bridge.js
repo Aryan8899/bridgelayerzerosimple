@@ -75,8 +75,8 @@ async function main() {
             console.log("balance is",currentWtanBalance)
             console.log("⚠️ WTAN balance low. Minting for testing...");
             //const currentWtanBalance = await wtan.balanceOf(deployer.address);
-            const mintTx = await wtan.mint(deployer.address, amount);
-            await mintTx.wait();
+          //  const mintTx = await wtan.mint(deployer.address, amount);
+           // await mintTx.wait();
             console.log("✅ Minted WTAN:", amount.toString());
         }
 

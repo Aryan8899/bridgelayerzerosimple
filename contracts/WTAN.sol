@@ -5,13 +5,18 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract WTAN is ERC20, Ownable {
-    constructor() ERC20("Wrapped TAN", "WTAN") {}
+    address public receiver;
 
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
+    constructor(address _receiver) ERC20("Wrapped TAN", "WTAN") {
+        receiver = _receiver;
     }
 
-    function burn(address from, uint256 amount) external  {
+    function burn(address from, uint256 amount) external {
         _burn(from, amount);
+    }
+
+    function mintThroughReceiver(address to, uint256 amount) external {
+        require(msg.sender == receiver, "Only receiver can mint");
+        _mint(to, amount);
     }
 }

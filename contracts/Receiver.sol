@@ -13,6 +13,8 @@ contract Receiver is ILayerZeroReceiver {
         endpoint = _endpoint;
     }
 
+    
+
     modifier onlyEndpoint() {
         require(msg.sender == endpoint, "Unauthorized sender");
         _;
@@ -21,17 +23,26 @@ contract Receiver is ILayerZeroReceiver {
     event NativeBridged(address indexed user, uint256 amount);
     event NativeUnwrapped(address indexed user, uint256 amount);
 
+
+     function mint(address to, uint256 amount) public {
+        // optionally: restrict who can call mint(), e.g. only endpoint
+        // require(msg.sender == someEndpoint, "Not allowed");
+
+        // Access internal _mint via WTAN (requires making WTAN a friend contract or use workaround)
+        wtan.mintThroughReceiver(to, amount);
+    }
+
     function lzReceive(
         uint16, bytes calldata, uint64, bytes calldata payload
     ) external override onlyEndpoint {
         (uint8 payloadType, address user, uint256 amount) = abi.decode(payload, (uint8, address, uint256));
 
         if (payloadType == 1) {
-            // TAN → Sepolia: mint WTAN
-            wtan.mint(user, amount);
+           
+            mint(user, amount);
             emit NativeBridged(user, amount);
         } else if (payloadType == 2) {
-            // Sepolia → TAN: unwrap WTAN and send native
+          
             (bool success, ) = user.call{value: amount}("");
             require(success, "Native transfer failed");
             emit NativeUnwrapped(user, amount);

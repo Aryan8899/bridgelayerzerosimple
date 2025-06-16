@@ -72,6 +72,7 @@
     "web3": "^1.6.1"
   },
   "dependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomiclabs/hardhat-etherscan": "^3.0.3"
   }
 }
