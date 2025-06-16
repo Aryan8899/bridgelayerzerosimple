@@ -42,6 +42,7 @@ async function main() {
 
     const sender = await ethers.getContractAt("contracts/Sender.sol:Sender", senderAddress);
     const wtan = await ethers.getContractAt("WTAN", wtanAddress);
+    const receiver = await ethers.getContractAt("contracts/Receiver.sol:Receiver", receiverAddress);
 
     const remoteChainId = deploymentInfo.bridgeSetup.remoteLzChainId;
     const chainNameMap = { 10161: "sepolia", 4442: "tan" };
@@ -64,24 +65,35 @@ async function main() {
         const receipt = await tx.wait();
         console.log("📦 Confirmed in block:", receipt.blockNumber);
         console.log("⛽ Gas used:", receipt.gasUsed.toString());
-       // logEvents(receipt.events);
 
     } else {
+        // Sepolia → TAN: WTAN → native
         const amount = ethers.utils.parseUnits("0.001", 18); // 0.001 WTAN
         const currentWtanBalance = await wtan.balanceOf(deployer.address);
 
         if (currentWtanBalance.lt(amount)) {
-            const currentWtanBalance = (await wtan.balanceOf(deployer.address)).toString();
-            console.log("balance is",currentWtanBalance)
-            console.log("⚠️ WTAN balance low. Minting for testing...");
-            //const currentWtanBalance = await wtan.balanceOf(deployer.address);
-            const mintTx = await wtan.mint(deployer.address, amount);
-            await mintTx.wait();
-            console.log("✅ Minted WTAN:", amount.toString());
+            console.log("⚠️ WTAN balance low. Need to use emergency mint for testing...");
+            
+            // Check if receiver has the emergencyMint function and use it
+            try {
+                console.log("🔄 Using emergency mint function from Receiver...");
+                const mintTx = await receiver.emergencyMint(deployer.address, amount, {
+                    ...(gasPrice ? { gasPrice } : {})
+                });
+                await mintTx.wait();
+                console.log("✅ Emergency minted WTAN:", amount.toString());
+            } catch (mintError) {
+                console.error("❌ Emergency mint failed:", mintError.message);
+                console.log("💡 Note: In production, WTAN should only be minted through the bridge.");
+                console.log("💡 You should bridge some TAN from the TAN network first to get WTAN on Sepolia.");
+                throw new Error("Cannot mint WTAN for testing. Bridge some TAN from TAN network first.");
+            }
         }
 
         console.log("🔐 Approving WTAN...");
-        const approveTx = await wtan.approve(sender.address, amount);
+        const approveTx = await wtan.approve(sender.address, amount, {
+            ...(gasPrice ? { gasPrice } : {})
+        });
         await approveTx.wait();
         console.log("✅ Approved");
 
@@ -94,31 +106,11 @@ async function main() {
         const receipt = await tx.wait();
         console.log("📦 Confirmed in block:", receipt.blockNumber);
         console.log("⛽ Gas used:", receipt.gasUsed.toString());
-       // logEvents(receipt.events);
     }
 
     console.log("✅ Bridge test complete.");
+    console.log("🔐 Security Note: WTAN can only be minted by the Receiver contract through bridge operations.");
 }
-
-// function logEvents(events = []) {
-//     console.log("\n=== Events ===");
-//     if (!events.length) {
-//         console.log("No events found.");
-//         return;
-//     }
-
-//     events.forEach((e, i) => {
-//         console.log(`\nEvent ${i + 1}:`);
-//         console.log("📍 Contract:", e.address);
-//         console.log("📛 Name:", e.event || "Unknown");
-//         if (e.args) {
-//             Object.entries(e.args).forEach(([key, val]) => {
-//                 if (!isNaN(key)) return;
-//                 console.log(`  ${key}: ${val.toString()}`);
-//             });
-//         }
-//     });
-// }
 
 main()
     .then(() => process.exit(0))

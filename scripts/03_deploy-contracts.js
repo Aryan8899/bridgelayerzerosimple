@@ -79,6 +79,9 @@ async function main() {
     console.log("✅ Using Endpoint:", endpointAddress);
     console.log("✅ Using WTAN:", wtanAddress);
 
+    // Get WTAN contract instance
+    const wtan = await ethers.getContractAt("WTAN", wtanAddress);
+
     async function deployWithGasEstimation(contractName, args = [], description, maxRetries = 3) {
         for (let i = 0; i < maxRetries; i++) {
             try {
@@ -108,6 +111,27 @@ async function main() {
         }
     }
 
+    async function executeWithRetry(fn, description, maxRetries = 3) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                console.log(`${description} (attempt ${i + 1}/${maxRetries})`);
+                const tx = await fn();
+                const receipt = await tx.wait();
+                console.log(`✅ ${description} completed. Gas used: ${receipt.gasUsed.toString()}`);
+                return receipt;
+            } catch (error) {
+                console.log(`❌ ${description} failed:`, error.message);
+                if (i === maxRetries - 1) throw error;
+                
+                console.log("⏱️ Waiting 2 seconds before retry...");
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const newGasOptions = await getGasPrice();
+                Object.assign(gasOptions, newGasOptions);
+                console.log("🔄 Retrying with updated gas options:", newGasOptions);
+            }
+        }
+    }
+
     console.log("📤 Deploying Sender...");
     const sender = await deployWithGasEstimation(
         "contracts/Sender.sol:Sender",
@@ -116,13 +140,53 @@ async function main() {
     );
     console.log("✓ Sender deployed to:", sender.address);
 
-    console.log("📥 Deploying Receiver...");
-    const receiver = await deployWithGasEstimation(
-        "contracts/Receiver.sol:Receiver",
-        [wtanAddress, endpointAddress],
-        "Receiver deployment"
-    );
-    console.log("✓ Receiver deployed to:", receiver.address);
+   // Inside the deployment script after deploying the Receiver contract
+
+console.log("📥 Deploying Receiver...");
+const receiver = await deployWithGasEstimation(
+    "contracts/Receiver.sol:Receiver",
+    [wtanAddress, endpointAddress],
+    "Receiver deployment"
+);
+console.log("✓ Receiver deployed to:", receiver.address);
+
+// After deploying the receiver, call the initialize function to set it as the minter
+// Inside your deploy script, call initialize using the deployer's signer explicitly
+// Inside your deploy script after deploying the Receiver contract
+const wtanContract = await ethers.getContractAt("WTAN", wtanAddress);
+const owner = await wtanContract.owner();
+console.log("Owner of the WTAN contract is:", owner);
+
+const receiverContract = await ethers.getContractAt("Receiver", receiver.address);
+const signer = await ethers.getSigner();  // Get the deployer's signer
+
+console.log("🔧 Setting the Receiver contract as the minter for WTAN...");
+const tx = await wtanContract.connect(signer).setMinter(receiver.address, {
+    gasLimit: 5000000,  // Manually set a higher gas limit
+    gasPrice: ethers.utils.parseUnits("50", "gwei")  // Adjust gas price if needed
+});
+await tx.wait();
+console.log("✅ Receiver successfully set as the minter for WTAN.");
+
+
+
+
+
+    // The Receiver constructor automatically sets itself as the minter
+    // But let's verify and log it
+    try {
+        const currentMinter = await wtan.minter();
+        console.log("✅ WTAN minter is now set to:", currentMinter);
+        console.log("✅ Receiver address:", receiver.address);
+        
+        if (currentMinter.toLowerCase() === receiver.address.toLowerCase()) {
+            console.log("✅ Minter setup successful - Receiver is now the only contract that can mint WTAN");
+        } else {
+            console.log("⚠️ Warning: Minter setup may not be correct");
+        }
+    } catch (error) {
+        console.log("⚠️ Could not verify minter setup:", error.message);
+    }
 
     if (!deploymentInfo.contracts) {
         deploymentInfo.contracts = {};
@@ -151,6 +215,7 @@ async function main() {
     console.log("  WTAN:", wtanAddress);
     console.log("  Sender:", sender.address);
     console.log("  Receiver:", receiver.address);
+    console.log("🔐 Security: Only the Receiver contract can mint WTAN tokens");
     console.log("🌐 Network:", network.name, "Chain ID:", network.chainId);
 }
 

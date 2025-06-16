@@ -1,20 +1,20 @@
 {
   "contracts": {
-    "library": "0x60D2B6Bfec22B2cFaF0892fd2B22F30770A2e27e",
-    "endpoint": "0x0Cc6d6119Eb52a1B672E8A7706dCBF312DE62533",
-    "uln": "0xd49aC81D50EE8988C9Ad5008651b4741ffEb0392",
-    "relayer": "0xAA21921AF5B1A3EAD899DAfEF2292Cef4d5f4e9F",
-    "wtan": "0xDb29D9f323E5a52F5426a89CBd3B9721A5B87b8A",
-    "sender": "0x8700D08D183C4Cd997ea44C7b02c3Ff3958398BE",
-    "receiver": "0x02877FB480F08C833CCc2813a39ee402d93Dd738"
+    "library": "0xDC382697f2dDE8851D3a0b9aAd1C3755d907f48b",
+    "endpoint": "0x53b02Eb89553350c3b0c7497419A7F78D4708FF6",
+    "uln": "0xE4EF6DF105D546761D4Cf8112AF006C859407871",
+    "relayer": "0x2c81E75fDF3f97577D36d061f378A91BC077b40A",
+    "wtan": "0xaA7236A3afe7a51Dcbc3F081D03266D2945396AB",
+    "sender": "0x21703e1F79d16602f710cBFA9F6dDcc07205342c",
+    "receiver": "0x47Eb7CdefB275780D55E26941814597DAa1133F9"
   },
   "setupComplete": true,
   "libraryVersion": "1",
-  "setupTimestamp": "2025-06-14T10:37:14.852Z",
+  "setupTimestamp": "2025-06-16T18:56:35.865Z",
   "gasOptionsUsed": {
     "maxFeePerGas": {
       "type": "BigNumber",
-      "hex": "0x6b762d8b"
+      "hex": "0x6b6ac6f4"
     },
     "maxPriorityFeePerGas": {
       "type": "BigNumber",
@@ -22,22 +22,22 @@
     }
   },
   "contractsDeployed": true,
-  "contractsTimestamp": "2025-06-14T10:39:49.559Z",
+  "contractsTimestamp": "2025-06-16T19:36:11.641Z",
   "contractsGasOptions": {
-    "maxFeePerGas": "1802522390",
+    "maxFeePerGas": "1802089620",
     "maxPriorityFeePerGas": "1650000000"
   },
   "bridgeSetup": {
     "setupComplete": true,
     "remoteNetwork": "tan",
     "remoteLzChainId": 4442,
-    "remoteReceiver": "0x65a47aE09aA3D49e721e32877D085C86C4663Fc1",
-    "remoteWTAN": "0xB14A2657422e2acbFcdf74BC9948e1951a5fcAd4",
-    "setupTimestamp": "2025-06-14T10:41:25.916Z",
+    "remoteReceiver": "0x113c869dF3A201A9e2BC0CD21aEd01f558c814E1",
+    "remoteWTAN": "0x7F2A9a7b252518CdFc54AE432eA931488872eFE7",
+    "setupTimestamp": "2025-06-16T19:38:13.383Z",
     "gasOptionsUsed": {
       "maxFeePerGas": {
         "type": "BigNumber",
-        "hex": "0x6b6e4f72"
+        "hex": "0x6b6dc045"
       },
       "maxPriorityFeePerGas": {
         "type": "BigNumber",
