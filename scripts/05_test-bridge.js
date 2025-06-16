@@ -64,7 +64,7 @@ async function main() {
         const receipt = await tx.wait();
         console.log("📦 Confirmed in block:", receipt.blockNumber);
         console.log("⛽ Gas used:", receipt.gasUsed.toString());
-        logEvents(receipt.events);
+       // logEvents(receipt.events);
 
     } else {
         const amount = ethers.utils.parseUnits("0.001", 18); // 0.001 WTAN
@@ -94,31 +94,31 @@ async function main() {
         const receipt = await tx.wait();
         console.log("📦 Confirmed in block:", receipt.blockNumber);
         console.log("⛽ Gas used:", receipt.gasUsed.toString());
-        logEvents(receipt.events);
+       // logEvents(receipt.events);
     }
 
     console.log("✅ Bridge test complete.");
 }
 
-function logEvents(events = []) {
-    console.log("\n=== Events ===");
-    if (!events.length) {
-        console.log("No events found.");
-        return;
-    }
+// function logEvents(events = []) {
+//     console.log("\n=== Events ===");
+//     if (!events.length) {
+//         console.log("No events found.");
+//         return;
+//     }
 
-    events.forEach((e, i) => {
-        console.log(`\nEvent ${i + 1}:`);
-        console.log("📍 Contract:", e.address);
-        console.log("📛 Name:", e.event || "Unknown");
-        if (e.args) {
-            Object.entries(e.args).forEach(([key, val]) => {
-                if (!isNaN(key)) return;
-                console.log(`  ${key}: ${val.toString()}`);
-            });
-        }
-    });
-}
+//     events.forEach((e, i) => {
+//         console.log(`\nEvent ${i + 1}:`);
+//         console.log("📍 Contract:", e.address);
+//         console.log("📛 Name:", e.event || "Unknown");
+//         if (e.args) {
+//             Object.entries(e.args).forEach(([key, val]) => {
+//                 if (!isNaN(key)) return;
+//                 console.log(`  ${key}: ${val.toString()}`);
+//             });
+//         }
+//     });
+// }
 
 main()
     .then(() => process.exit(0))
