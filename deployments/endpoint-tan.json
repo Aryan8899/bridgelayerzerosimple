@@ -1,16 +1,16 @@
 {
   "contracts": {
-    "library": "0x970383dac7CBeac6856908C94965723e990AAedd",
-    "endpoint": "0x4834Cc58887Cb91e1cdc6C641EA1eED944C89Ee1",
-    "uln": "0x62C41F593AAE1A9B927323675dAa32cc19296C6f",
-    "relayer": "0x95654aCf4dC57d3E49637c42B0b8337a9d78453F",
-    "sender": "0xe9A73E3A3e627ca1c764e778f111ffe4CE40a000",
-    "receiver": "0xCcb08baBe2Ac75167685a4E40850bdC4BFb0d071",
-    "wtan": "0x19785612e4F703566bb54C59550Ad9229B742cc7"
+    "library": "0x65133e1d71d686b2291072DDD3a3520a91E19754",
+    "endpoint": "0xf9208755fedC287F452d0cbaFEF0ec967239187B",
+    "uln": "0x7e2615126640590c9574Bd45d8658D6761a109DE",
+    "relayer": "0xB4521E59349cd426F3277F451357e82dB6c2a086",
+    "wtan": "0xB6A94b60D9CC10dFBF2A25A4c6FB8De886fB73E7",
+    "sender": "0x02cB28B069298891fbe3C9E6979EF695b4d9CF73",
+    "receiver": "0xEdC14e343070edc53589B0D0566BeCD3B3b37e20"
   },
   "setupComplete": true,
   "libraryVersion": "1",
-  "setupTimestamp": "2025-06-16T09:00:33.420Z",
+  "setupTimestamp": "2025-06-16T14:12:27.328Z",
   "gasOptionsUsed": {
     "maxFeePerGas": {
       "type": "BigNumber",
@@ -22,7 +22,7 @@
     }
   },
   "contractsDeployed": true,
-  "contractsTimestamp": "2025-06-16T09:13:30.577Z",
+  "contractsTimestamp": "2025-06-16T14:14:03.021Z",
   "contractsGasOptions": {
     "maxFeePerGas": "1800000016",
     "maxPriorityFeePerGas": "1650000000"
@@ -31,9 +31,9 @@
     "setupComplete": true,
     "remoteNetwork": "sepolia",
     "remoteLzChainId": 10161,
-    "remoteReceiver": "0xB6d0F7d4E3B8E7B629F59f92a54d12ad6D9d2E6d",
-    "remoteWTAN": "0x909897017A7EcF781C47092DBA3f02fc89432a79",
-    "setupTimestamp": "2025-06-16T09:14:59.717Z",
+    "remoteReceiver": "0x7e79c5b93E1DCd792eDf9c6d9908b3aF4C5d719C",
+    "remoteWTAN": "0x60eAEE10D6Edfa05493F70e44393A353DeD8C0b2",
+    "setupTimestamp": "2025-06-16T14:15:10.242Z",
     "gasOptionsUsed": {
       "maxFeePerGas": {
         "type": "BigNumber",

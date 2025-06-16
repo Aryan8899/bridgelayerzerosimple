@@ -41,6 +41,7 @@ async function main() {
     console.log("WTAN:", wtanAddress);
 
     const sender = await ethers.getContractAt("contracts/Sender.sol:Sender", senderAddress);
+    const receiver = await ethers.getContractAt("contracts/Receiver.sol:Receiver", receiverAddress);
     const wtan = await ethers.getContractAt("WTAN", wtanAddress);
 
     const remoteChainId = deploymentInfo.bridgeSetup.remoteLzChainId;
@@ -64,24 +65,69 @@ async function main() {
         const receipt = await tx.wait();
         console.log("📦 Confirmed in block:", receipt.blockNumber);
         console.log("⛽ Gas used:", receipt.gasUsed.toString());
-       // logEvents(receipt.events);
+        logEvents(receipt.events);
 
     } else {
         const amount = ethers.utils.parseUnits("0.001", 18); // 0.001 WTAN
         const currentWtanBalance = await wtan.balanceOf(deployer.address);
 
+        console.log("Current WTAN balance:", ethers.utils.formatEther(currentWtanBalance), "WTAN");
+
         if (currentWtanBalance.lt(amount)) {
-            const currentWtanBalance = (await wtan.balanceOf(deployer.address)).toString();
-            console.log("balance is",currentWtanBalance)
-            console.log("⚠️ WTAN balance low. Minting for testing...");
-            //const currentWtanBalance = await wtan.balanceOf(deployer.address);
-          //  const mintTx = await wtan.mint(deployer.address, amount);
-           // await mintTx.wait();
-            console.log("✅ Minted WTAN:", amount.toString());
+            console.log("⚠️ WTAN balance low. Need to mint for testing...");
+            
+            // Check the current receiver
+            const currentReceiver = await wtan.receiver();
+            console.log("WTAN receiver is set to:", currentReceiver);
+            console.log("Receiver contract address:", receiverAddress);
+            console.log("Deployer address:", deployer.address);
+            
+            if (currentReceiver === ethers.constants.AddressZero) {
+                throw new Error("WTAN receiver not set. This should have been set during deployment.");
+            }
+            
+            // The receiver should be the Receiver contract, not the deployer
+            if (currentReceiver !== receiverAddress) {
+                throw new Error(`WTAN receiver is set to ${currentReceiver}, but expected ${receiverAddress}`);
+            }
+            
+            console.log("\n❗ Cannot mint WTAN directly on live networks.");
+            console.log("💡 To get WTAN tokens for testing, you need to:");
+            console.log("1. Bridge native TAN from TAN network to Sepolia");
+            console.log("2. Or wait for cross-chain transactions to complete");
+            console.log("\n🔄 Let's check if any WTAN was minted from the TAN->Sepolia bridge...");
+            
+            // Check recent WTAN balance again (in case cross-chain tx completed)
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+            const updatedBalance = await wtan.balanceOf(deployer.address);
+            console.log("Updated WTAN balance:", ethers.utils.formatEther(updatedBalance), "WTAN");
+            
+            if (updatedBalance.lt(amount)) {
+                console.log("\n⚠️ Still insufficient WTAN balance.");
+                console.log("🚀 Suggestion: Run the bridge from TAN network first:");
+                console.log("   npx hardhat run scripts/05_test-bridge.js --network tan");
+                console.log("   Then wait a few minutes and run this script again.");
+                
+                // For demonstration, let's use a smaller amount if we have some WTAN
+                if (updatedBalance.gt(0)) {
+                    const smallerAmount = updatedBalance.div(2); // Use half of available balance
+                    if (smallerAmount.gt(0)) {
+                        console.log(`\n🔄 Using available balance: ${ethers.utils.formatEther(smallerAmount)} WTAN`);
+                        // Update amount to use available balance
+                        amount = smallerAmount;
+                    } else {
+                        throw new Error("No WTAN available for testing. Bridge from TAN network first.");
+                    }
+                } else {
+                    throw new Error("No WTAN available for testing. Bridge from TAN network first.");
+                }
+            }
         }
 
         console.log("🔐 Approving WTAN...");
-        const approveTx = await wtan.approve(sender.address, amount);
+        const approveTx = await wtan.approve(sender.address, amount, {
+            ...(gasPrice ? { gasPrice } : {})
+        });
         await approveTx.wait();
         console.log("✅ Approved");
 
@@ -94,31 +140,31 @@ async function main() {
         const receipt = await tx.wait();
         console.log("📦 Confirmed in block:", receipt.blockNumber);
         console.log("⛽ Gas used:", receipt.gasUsed.toString());
-       // logEvents(receipt.events);
+        logEvents(receipt.events);
     }
 
     console.log("✅ Bridge test complete.");
 }
 
-// function logEvents(events = []) {
-//     console.log("\n=== Events ===");
-//     if (!events.length) {
-//         console.log("No events found.");
-//         return;
-//     }
+function logEvents(events = []) {
+    console.log("\n=== Events ===");
+    if (!events.length) {
+        console.log("No events found.");
+        return;
+    }
 
-//     events.forEach((e, i) => {
-//         console.log(`\nEvent ${i + 1}:`);
-//         console.log("📍 Contract:", e.address);
-//         console.log("📛 Name:", e.event || "Unknown");
-//         if (e.args) {
-//             Object.entries(e.args).forEach(([key, val]) => {
-//                 if (!isNaN(key)) return;
-//                 console.log(`  ${key}: ${val.toString()}`);
-//             });
-//         }
-//     });
-// }
+    events.forEach((e, i) => {
+        console.log(`\nEvent ${i + 1}:`);
+        console.log("📍 Contract:", e.address);
+        console.log("📛 Name:", e.event || "Unknown");
+        if (e.args) {
+            Object.entries(e.args).forEach(([key, val]) => {
+                if (!isNaN(key)) return;
+                console.log(`  ${key}: ${val.toString()}`);
+            });
+        }
+    });
+}
 
 main()
     .then(() => process.exit(0))

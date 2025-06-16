@@ -20,34 +20,36 @@ contract Receiver is ILayerZeroReceiver {
 
     event NativeBridged(address indexed user, uint256 amount);
     event NativeUnwrapped(address indexed user, uint256 amount);
+    
 
-    // This function should be internal or private since only this contract should call it
-    // and it should only be called from lzReceive
-    function _mintWTAN(address to, uint256 amount) internal {
-        wtan.mintThroughReceiver(to, amount);
-    }
+    event DebugPayload(uint8 payloadType, address user, uint256 amount);
+event LzReceiveTriggered();
 
-    function lzReceive(
-        uint16, 
-        bytes calldata, 
-        uint64, 
-        bytes calldata payload
-    ) external override onlyEndpoint {
-        (uint8 payloadType, address user, uint256 amount) = abi.decode(payload, (uint8, address, uint256));
+function lzReceive(
+    uint16, bytes calldata, uint64, bytes calldata payload
+) external override onlyEndpoint {
+    emit LzReceiveTriggered();
 
-        if (payloadType == 1) {
-            // Native TAN -> WTAN: mint WTAN to user
-            _mintWTAN(user, amount);
+    (uint8 payloadType, address user, uint256 amount) = abi.decode(payload, (uint8, address, uint256));
+    emit DebugPayload(payloadType, user, amount);
+
+    if (payloadType == 1) {
+        try wtan.mintTo(user, amount) {
             emit NativeBridged(user, amount);
-        } else if (payloadType == 2) {
-            // WTAN -> Native TAN: send native TAN to user
-            (bool success, ) = user.call{value: amount}("");
-            require(success, "Native transfer failed");
-            emit NativeUnwrapped(user, amount);
-        } else {
-            revert("Invalid payloadType");
+        } catch Error(string memory reason) {
+            revert(string(abi.encodePacked("Mint failed: ", reason)));
+        } catch {
+            revert("Mint failed: unknown error");
         }
+    } else if (payloadType == 2) {
+        (bool success, ) = user.call{value: amount}("");
+        require(success, "Native transfer failed");
+        emit NativeUnwrapped(user, amount);
+    } else {
+        revert("Invalid payloadType");
     }
+}
+
 
     receive() external payable {}
 }
