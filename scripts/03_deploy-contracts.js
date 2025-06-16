@@ -108,22 +108,22 @@ async function main() {
         }
     }
 // 📥 First deploy WTAN
-console.log("📥 Deploying WTAN...");
-const wtan = await deployWithGasEstimation(
-    "contracts/WTAN.sol:WTAN",
-    [ethers.constants.AddressZero], // Placeholder, will update after deploying Receiver
-    "WTAN deployment"
-);
-console.log("✓ WTAN deployed to:", wtan.address);
-
-// 📥 Then deploy Receiver with WTAN address and endpoint
 console.log("📥 Deploying Receiver...");
 const receiver = await deployWithGasEstimation(
     "contracts/Receiver.sol:Receiver",
-    [wtan.address, endpointAddress],
+    [endpointAddress], // Remove WTAN address for now
     "Receiver deployment"
 );
 console.log("✓ Receiver deployed to:", receiver.address);
+
+// Deploy WTAN with receiver address
+console.log("🪙 Deploying WTAN...");
+const wtan = await deployWithGasEstimation(
+    "WTAN",
+    [receiver.address], // Pass receiver address to WTAN constructor
+    "WTAN deployment"
+);
+console.log("✓ WTAN deployed to:", wtan.address);
 
 // 🔁 Update WTAN's receiver address now (if you want dynamic re-assignment)
 // Optional: Only if your WTAN has `setReceiver()` method, otherwise pass correct one initially
@@ -136,6 +136,12 @@ const sender = await deployWithGasEstimation(
     "Sender deployment"
 );
 console.log("✓ Sender deployed to:", sender.address);
+
+// Update receiver with WTAN address (you'll need to add a setter function)
+console.log("🔗 Linking WTAN to Receiver...");
+const setWTANTx = await receiver.setWTAN(wtan.address, gasOptions);
+await setWTANTx.wait();
+console.log("✅ WTAN linked to Receiver");
 
 
     if (!deploymentInfo.contracts) {
