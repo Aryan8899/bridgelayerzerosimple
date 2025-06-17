@@ -135,15 +135,15 @@ const WTAN = await ethers.getContractAt("WTAN", wtanAddress, deployer);
 // Call transferOwnership
 console.log(receiver.address);
 
-const tx = await WTAN.transferOwnership(receiver.address, {
-    ...gasOptions,
-    gasLimit: ethers.utils.hexlify(400000) // Increased gas limit
-});
-await tx.wait();
+// const tx = await WTAN.transferOwnership(receiver.address, {
+//     ...gasOptions,
+//     gasLimit: ethers.utils.hexlify(400000) // Increased gas limit
+// });
+// await tx.wait();
 
 //await tx.wait();
 
-console.log("✅ Ownership transferred to Receiver:", receiver.address);
+//console.log("✅ Ownership transferred to Receiver:", receiver.address);
 
     // Fix: Use deployer (signer) instead of provider
     // const contract = new ethers.Contract(receiver.address, receiverABI.abi, deployer);

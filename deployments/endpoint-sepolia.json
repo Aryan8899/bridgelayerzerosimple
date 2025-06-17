@@ -1,0 +1,27 @@
+{
+  "contracts": {
+    "library": "0x34613bF08db4d4cc8b18A2EfAa02aE32e432b1Ed",
+    "endpoint": "0xFfAF2bB2fa719585439dd991ee37b616fe24Cd21",
+    "uln": "0xfCE3cF8b3D2Bfb7881bA4764b8730625E13B5be8",
+    "relayer": "0x998CfAA49B7670F51AcF84c40A698aDd920727C2",
+    "wtan": "0x1b1d031980E863D5081029A4A45e6F0B44112509",
+    "sender": "0xBdeC2B4B4Ac21D8Bc42CF81c9f4bFdeD36c3A82f",
+    "receiver": "0x2c889CA3c07FAdB3fD9F2dF31A3d8A7Fc86a66BA"
+  },
+  "setupComplete": true,
+  "libraryVersion": "1",
+  "setupTimestamp": "2025-06-17T08:10:16.678Z",
+  "gasOptionsUsed": {
+    "maxFeePerGas": {
+      "type": "BigNumber",
+      "hex": "0xa849c79b"
+    },
+    "maxPriorityFeePerGas": {
+      "type": "BigNumber",
+      "hex": "0x62590080"
+    }
+  },
+  "contractsDeployed": true,
+  "contractsTimestamp": "2025-06-17T08:23:26.009Z",
+  "contractsGasOptions": {}
+}

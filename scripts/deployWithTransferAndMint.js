@@ -22,6 +22,8 @@ async function main() {
         throw new Error("Unsupported network");
     }
 
+    
+
     console.log("Using provider:", provider.connection.url);
     console.log("Deploying Sender and Receiver contracts with account:", deployer.address);
 
@@ -36,6 +38,10 @@ async function main() {
     console.log("- contracts:", deploymentInfo.contracts);
     console.log("- endpoint address:", deploymentInfo.contracts?.endpoint);
     console.log("- WTAN address:", deploymentInfo.contracts?.wtan);
+
+    //const wtan = await ethers.getContractAt("WTAN",deploymentInfo.contracts?.wtan);
+
+    
 
     if (!deploymentInfo.setupComplete) {
         throw new Error("Endpoint setup not complete. Run setup-endpoint.js first.");
@@ -96,9 +102,15 @@ async function main() {
             await txTransfer.wait();
             console.log("✅ Ownership transferred to Receiver:", Receiver.address);
 
+            console.log("Now calling intilizer");
+            await Receiver.initialize();
+
+            console.log("intilization done now we do minting..........")
+
+
             // Minting call - assuming the Receiver contract has a mint function
             console.log("🪙 Minting tokens...");
-            const mintTx = await Receiver.mint(deployer.address, ethers.utils.parseUnits("100", "ether"), {
+            const mintTx = await WTAN.mint(deployer.address, ethers.utils.parseUnits("100", "ether"), {
                 ...gasOptions,
                 gasLimit: ethers.utils.hexlify(200000) // Adjust gas limit for minting
             });
