@@ -53,11 +53,11 @@ contract Receiver is ILayerZeroReceiver {
     }
 
     // Emergency mint function (only for testing or special cases)
-    function emergencyMint(address to, uint256 amount) external {
-        // Add your access control here if needed
-        // For example: require(msg.sender == owner, "Only owner");
-        _mintWTAN(to, amount);
-    }
+    // function emergencyMint(address to, uint256 amount) external {
+    //     // Add your access control here if needed
+    //     // For example: require(msg.sender == owner, "Only owner");
+    //     _mintWTAN(to, amount);
+    // }
 
     receive() external payable {}
 

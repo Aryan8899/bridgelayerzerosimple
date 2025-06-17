@@ -44,6 +44,7 @@ async function main() {
     const wtan = await ethers.getContractAt("WTAN", wtanAddress);
     const receiver = await ethers.getContractAt("contracts/Receiver.sol:Receiver", receiverAddress);
 
+
     const remoteChainId = deploymentInfo.bridgeSetup.remoteLzChainId;
     const chainNameMap = { 10161: "sepolia", 4442: "tan" };
     const currentChainName = chainNameMap[network.chainId] || filenameNetworkName;
@@ -77,7 +78,7 @@ async function main() {
             // Check if receiver has the emergencyMint function and use it
             try {
                 console.log("🔄 Using emergency mint function from Receiver...");
-                const mintTx = await receiver.emergencyMint(deployer.address, amount, {
+                const mintTx = await wtan.mint(deployer.address, amount, {
                     ...(gasPrice ? { gasPrice } : {})
                 });
                 await mintTx.wait();

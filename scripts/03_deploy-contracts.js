@@ -1,56 +1,31 @@
 const { ethers } = require("hardhat");
 const fs = require('fs');
 const path = require("path");
+const receiverABI = require("../artifacts/contracts/Receiver.sol/Receiver.json");
+const { Signer } = require("ethers");
 
 async function main() {
     const [deployer] = await ethers.getSigners();
-    console.log("Deploying Sender and Receiver contracts with account:", deployer.address);
-
     const network = await ethers.provider.getNetwork();
-    console.log("Current network:", network.name, "Chain ID:", network.chainId);
-
+    let provider;
+    let gasOptions = {};
     let filenameNetworkName;
-    if (network.chainId.toString() === "4442") {
+
+    // Set the provider and network-specific options
+    if (network.chainId.toString() === "4442") {  // TAN Network
         filenameNetworkName = "tan";
-    } else if (network.chainId.toString() === "11155111") {
+        provider = new ethers.providers.JsonRpcProvider("https://tan-devnetrpc2.tan.live");
+        gasOptions = { gasPrice: ethers.utils.parseUnits("2", "gwei") };  // 2 Gwei for TAN network
+    } else if (network.chainId.toString() === "11155111") {  // Sepolia Network
         filenameNetworkName = "sepolia";
+        provider = new ethers.providers.JsonRpcProvider("https://eth-sepolia.g.alchemy.com/v2/B7X9gRjxfPZ9uOYogYWOy");
+        gasOptions = {}; // Default gas settings for Sepolia
     } else {
-        filenameNetworkName = network.name || network.chainId.toString();
+        throw new Error("Unsupported network");
     }
 
-    async function getGasPrice() {
-        try {
-            const feeData = await ethers.provider.getFeeData();
-            console.log("Current fee data:", {
-                gasPrice: feeData.gasPrice?.toString(),
-                maxFeePerGas: feeData.maxFeePerGas?.toString(),
-                maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
-            });
-
-            if (feeData.maxFeePerGas) {
-                return {
-                    maxFeePerGas: feeData.maxFeePerGas.mul(120).div(100),
-                    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.mul(110).div(100) || ethers.utils.parseUnits("2", "gwei")
-                };
-            } else if (feeData.gasPrice) {
-                return {
-                    gasPrice: feeData.gasPrice.mul(120).div(100)
-                };
-            } else {
-                return {
-                    gasPrice: ethers.utils.parseUnits("50", "gwei")
-                };
-            }
-        } catch (error) {
-            console.log("Error getting fee data, using fallback gas price:", error.message);
-            return {
-                gasPrice: ethers.utils.parseUnits("50", "gwei")
-            };
-        }
-    }
-
-    const gasOptions = await getGasPrice();
-    console.log("Using gas options:", gasOptions);
+    console.log("Using provider:", provider.connection.url);
+    console.log("Deploying Sender and Receiver contracts with account:", deployer.address);
 
     const endpointFileName = `deployments/endpoint-${filenameNetworkName}.json`;
     if (!fs.existsSync(endpointFileName)) {
@@ -58,7 +33,6 @@ async function main() {
     }
 
     const deploymentInfo = JSON.parse(fs.readFileSync(endpointFileName, 'utf8'));
-
     console.log("🔍 Deployment info structure:");
     console.log("- setupComplete:", deploymentInfo.setupComplete);
     console.log("- contracts:", deploymentInfo.contracts);
@@ -79,8 +53,34 @@ async function main() {
     console.log("✅ Using Endpoint:", endpointAddress);
     console.log("✅ Using WTAN:", wtanAddress);
 
-    // Get WTAN contract instance
-    const wtan = await ethers.getContractAt("WTAN", wtanAddress);
+    // Add the getGasPrice function to dynamically calculate the gas price
+    async function getGasPrice() {
+        try {
+            const feeData = await provider.getFeeData();
+            console.log("Current fee data:", feeData);
+
+            if (feeData.maxFeePerGas) {
+                return {
+                    maxFeePerGas: feeData.maxFeePerGas.mul(120).div(100),  // Adjust by 20%
+                    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.mul(110).div(100) || ethers.utils.parseUnits("2", "gwei")
+                };
+            } else if (feeData.gasPrice) {
+                return {
+                    gasPrice: feeData.gasPrice.mul(120).div(100)  // Adjust by 20%
+                };
+            } else {
+                return { gasPrice: ethers.utils.parseUnits("50", "gwei") };  // Default gas price
+            }
+        } catch (error) {
+            console.log("Error getting fee data, using fallback gas price:", error.message);
+            return {
+                gasPrice: ethers.utils.parseUnits("50", "gwei")  // Default fallback gas price
+            };
+        }
+    }
+
+    // Get gas price dynamically
+    gasOptions = await getGasPrice();
 
     async function deployWithGasEstimation(contractName, args = [], description, maxRetries = 3) {
         for (let i = 0; i < maxRetries; i++) {
@@ -88,7 +88,7 @@ async function main() {
                 console.log(`${description} (attempt ${i + 1}/${maxRetries})`);
                 const ContractFactory = await ethers.getContractFactory(contractName);
                 const deploymentData = ContractFactory.getDeployTransaction(...args);
-                const estimatedGas = await ethers.provider.estimateGas(deploymentData);
+                const estimatedGas = await provider.estimateGas(deploymentData);
                 const gasLimit = estimatedGas.mul(110).div(100); // 10% buffer
                 const contract = await ContractFactory.deploy(...args, {
                     ...gasOptions,
@@ -111,27 +111,6 @@ async function main() {
         }
     }
 
-    async function executeWithRetry(fn, description, maxRetries = 3) {
-        for (let i = 0; i < maxRetries; i++) {
-            try {
-                console.log(`${description} (attempt ${i + 1}/${maxRetries})`);
-                const tx = await fn();
-                const receipt = await tx.wait();
-                console.log(`✅ ${description} completed. Gas used: ${receipt.gasUsed.toString()}`);
-                return receipt;
-            } catch (error) {
-                console.log(`❌ ${description} failed:`, error.message);
-                if (i === maxRetries - 1) throw error;
-                
-                console.log("⏱️ Waiting 2 seconds before retry...");
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const newGasOptions = await getGasPrice();
-                Object.assign(gasOptions, newGasOptions);
-                console.log("🔄 Retrying with updated gas options:", newGasOptions);
-            }
-        }
-    }
-
     console.log("📤 Deploying Sender...");
     const sender = await deployWithGasEstimation(
         "contracts/Sender.sol:Sender",
@@ -140,54 +119,44 @@ async function main() {
     );
     console.log("✓ Sender deployed to:", sender.address);
 
-   // Inside the deployment script after deploying the Receiver contract
+    console.log("📥 Deploying Receiver...");
+    const receiver = await deployWithGasEstimation(
+        "contracts/Receiver.sol:Receiver",
+        [wtanAddress, endpointAddress],
+        "Receiver deployment"
+    );
+    console.log("✓ Receiver deployed to:", receiver.address);
 
-console.log("📥 Deploying Receiver...");
-const receiver = await deployWithGasEstimation(
-    "contracts/Receiver.sol:Receiver",
-    [wtanAddress, endpointAddress],
-    "Receiver deployment"
-);
-console.log("✓ Receiver deployed to:", receiver.address);
+   console.log("🔐 Transferring ownership of WTAN to Receiver...");
 
-// After deploying the receiver, call the initialize function to set it as the minter
-// Inside your deploy script, call initialize using the deployer's signer explicitly
-// Inside your deploy script after deploying the Receiver contract
-const wtanContract = await ethers.getContractAt("WTAN", wtanAddress);
-const owner = await wtanContract.owner();
-console.log("Owner of the WTAN contract is:", owner);
+// Create WTAN contract instance with deployer signer
+const WTAN = await ethers.getContractAt("WTAN", wtanAddress, deployer);
 
-const receiverContract = await ethers.getContractAt("Receiver", receiver.address);
-const signer = await ethers.getSigner();  // Get the deployer's signer
+// Call transferOwnership
+console.log(receiver.address);
 
-console.log("🔧 Setting the Receiver contract as the minter for WTAN...");
-const tx = await wtanContract.connect(signer).setMinter(receiver.address, {
-    gasLimit: 5000000,  // Manually set a higher gas limit
-    gasPrice: ethers.utils.parseUnits("50", "gwei")  // Adjust gas price if needed
+const tx = await WTAN.transferOwnership(receiver.address, {
+    ...gasOptions,
+    gasLimit: ethers.utils.hexlify(400000) // Increased gas limit
 });
 await tx.wait();
-console.log("✅ Receiver successfully set as the minter for WTAN.");
 
+//await tx.wait();
 
+console.log("✅ Ownership transferred to Receiver:", receiver.address);
 
+    // Fix: Use deployer (signer) instead of provider
+    // const contract = new ethers.Contract(receiver.address, receiverABI.abi, deployer);
 
+    // // Use the correct contract instance to call initialize
+    // const initTx = await contract.initialize({
+    //     ...gasOptions,
+    //     gasLimit: ethers.utils.hexlify(300000) // Set a reasonable gas limit
+    // });
+    // await initTx.wait();
+    // console.log("✅ Minter set successfully.");
 
-    // The Receiver constructor automatically sets itself as the minter
-    // But let's verify and log it
-    try {
-        const currentMinter = await wtan.minter();
-        console.log("✅ WTAN minter is now set to:", currentMinter);
-        console.log("✅ Receiver address:", receiver.address);
-        
-        if (currentMinter.toLowerCase() === receiver.address.toLowerCase()) {
-            console.log("✅ Minter setup successful - Receiver is now the only contract that can mint WTAN");
-        } else {
-            console.log("⚠️ Warning: Minter setup may not be correct");
-        }
-    } catch (error) {
-        console.log("⚠️ Could not verify minter setup:", error.message);
-    }
-
+    // Update deployment information
     if (!deploymentInfo.contracts) {
         deploymentInfo.contracts = {};
     }
@@ -197,8 +166,6 @@ console.log("✅ Receiver successfully set as the minter for WTAN.");
     deploymentInfo.contractsDeployed = true;
     deploymentInfo.contractsTimestamp = new Date().toISOString();
     deploymentInfo.contractsGasOptions = {
-        maxFeePerGas: gasOptions.maxFeePerGas?.toString(),
-        maxPriorityFeePerGas: gasOptions.maxPriorityFeePerGas?.toString(),
         gasPrice: gasOptions.gasPrice?.toString()
     };
 
@@ -215,7 +182,6 @@ console.log("✅ Receiver successfully set as the minter for WTAN.");
     console.log("  WTAN:", wtanAddress);
     console.log("  Sender:", sender.address);
     console.log("  Receiver:", receiver.address);
-    console.log("🔐 Security: Only the Receiver contract can mint WTAN tokens");
     console.log("🌐 Network:", network.name, "Chain ID:", network.chainId);
 }
 
