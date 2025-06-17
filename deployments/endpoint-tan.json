@@ -1,16 +1,16 @@
 {
   "contracts": {
-    "library": "0xfD34069B77155cC5e1965AAAE39230e2E9aB57e1",
-    "endpoint": "0x3388869581aE49E74430e728DD341b4EC42c0e5F",
-    "uln": "0x2015b9b3762B4fb65275E6Af6655Cee60B8fD644",
-    "relayer": "0x66857766dd21030379632DF9Cd87cEdFAFe13EE1",
-    "wtan": "0xcc8996268F759Bfc255A230aDB0829D53561f654",
-    "sender": "0x709e4127b527c1Aa44BB55D7424D0020F7572674",
-    "receiver": "0xb3F2e709F35fc57923CddAD4A0D0BA9B16eDfC96"
+    "library": "0xEe2770950C7E600c2E13815548B779070054D672",
+    "endpoint": "0xF3F4Bab5e13Bcf57CD27925ADD27bB0658727B9F",
+    "uln": "0x44D288D272C48d9e7ae0C74a2BE57AA0BB6cA9a6",
+    "relayer": "0x7834a31cd9af0F77AB848466e80174864585D278",
+    "wtan": "0x0efE1676dCe2d0e3Be178c013d04f21ef5830424",
+    "sender": "0x1F8cb3Dda2Ae9e06089510b2Fd1CFc5982aCA671",
+    "receiver": "0xE4C7D1a9596c84A16060A8BF68229f100486dc95"
   },
   "setupComplete": true,
   "libraryVersion": "1",
-  "setupTimestamp": "2025-06-17T08:09:14.593Z",
+  "setupTimestamp": "2025-06-17T08:35:23.680Z",
   "gasOptionsUsed": {
     "maxFeePerGas": {
       "type": "BigNumber",
@@ -22,6 +22,6 @@
     }
   },
   "contractsDeployed": true,
-  "contractsTimestamp": "2025-06-17T08:17:34.044Z",
+  "contractsTimestamp": "2025-06-17T08:36:43.727Z",
   "contractsGasOptions": {}
 }
