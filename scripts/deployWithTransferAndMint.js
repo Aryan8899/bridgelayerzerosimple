@@ -22,8 +22,6 @@ async function main() {
         throw new Error("Unsupported network");
     }
 
-    
-
     console.log("Using provider:", provider.connection.url);
     console.log("Deploying Sender and Receiver contracts with account:", deployer.address);
 
@@ -38,10 +36,6 @@ async function main() {
     console.log("- contracts:", deploymentInfo.contracts);
     console.log("- endpoint address:", deploymentInfo.contracts?.endpoint);
     console.log("- WTAN address:", deploymentInfo.contracts?.wtan);
-
-    //const wtan = await ethers.getContractAt("WTAN",deploymentInfo.contracts?.wtan);
-
-    
 
     if (!deploymentInfo.setupComplete) {
         throw new Error("Endpoint setup not complete. Run setup-endpoint.js first.");
@@ -102,15 +96,23 @@ async function main() {
             await txTransfer.wait();
             console.log("✅ Ownership transferred to Receiver:", Receiver.address);
 
-            console.log("Now calling intilizer");
-            await Receiver.initialize();
-
-            console.log("intilization done now we do minting..........")
-
+            // Check if Receiver contract is initialized (adjust based on your contract logic)
+            const isInitialized = await Receiver.initialized(); // Assume `initialized()` returns true if already initialized
+            if (!isInitialized) {
+                console.log("Receiver contract is not initialized. Calling initialize...");
+                const initTx = await Receiver.initialize({
+                    ...gasOptions,
+                    gasLimit: ethers.utils.hexlify(300000) // Adjust gas limit for initialization
+                });
+                await initTx.wait();
+                console.log("✅ Initialization done!");
+            } else {
+                console.log("Receiver contract is already initialized. Skipping initialization.");
+            }
 
             // Minting call - assuming the Receiver contract has a mint function
             console.log("🪙 Minting tokens...");
-            const mintTx = await WTAN.mint(deployer.address, ethers.utils.parseUnits("100", "ether"), {
+            const mintTx = await Receiver.mint(deployer.address, ethers.utils.parseUnits("100", "ether"), {
                 ...gasOptions,
                 gasLimit: ethers.utils.hexlify(200000) // Adjust gas limit for minting
             });
