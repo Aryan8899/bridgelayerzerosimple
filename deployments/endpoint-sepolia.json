@@ -1,0 +1,45 @@
+{
+  "contracts": {
+    "library": "0x97796403bfC841E03aDAdb4A6EA4133f6C8e8AC2",
+    "endpoint": "0x29590c5Cdb29060d14097A6EFaE9719D46b8B979",
+    "uln": "0xF5A274aceAcD1D4D679c1917a3B37efb2dDd2a8d",
+    "relayer": "0xa17F83516Fdd2938b3405db8404446F6E4109AE7",
+    "wtan": "0xbc5A879eB532f42518A1db934748D779182DE516",
+    "sender": "0x62B1744145fCfC3eCd7c267e42C9464735fe1FB9",
+    "receiver": "0x20e737f36af470877D96778b68D9E42bA1509e5b"
+  },
+  "setupComplete": true,
+  "libraryVersion": "1",
+  "setupTimestamp": "2025-06-20T05:57:02.327Z",
+  "gasOptionsUsed": {
+    "maxFeePerGas": {
+      "type": "BigNumber",
+      "hex": "0x6b58cc28"
+    },
+    "maxPriorityFeePerGas": {
+      "type": "BigNumber",
+      "hex": "0x62590080"
+    }
+  },
+  "contractsDeployed": true,
+  "contractsTimestamp": "2025-06-20T05:58:40.045Z",
+  "contractsGasOptions": {},
+  "bridgeSetup": {
+    "setupComplete": true,
+    "remoteNetwork": "tan",
+    "remoteLzChainId": 4442,
+    "remoteReceiver": "0x5954bfa8C8897f476132b72E89789558272B0Ae8",
+    "remoteWTAN": "0x32986eD3e13659dA27Bb546693f84036B1A0556b",
+    "setupTimestamp": "2025-06-20T06:00:04.694Z",
+    "gasOptionsUsed": {
+      "maxFeePerGas": {
+        "type": "BigNumber",
+        "hex": "0x6b53ae0c"
+      },
+      "maxPriorityFeePerGas": {
+        "type": "BigNumber",
+        "hex": "0x62590080"
+      }
+    }
+  }
+}

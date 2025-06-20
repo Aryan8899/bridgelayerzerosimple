@@ -1,0 +1,21 @@
+{
+  "name": "offchain",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@ethereumjs/block": "^10.0.0",
+    "@ethereumjs/trie": "^6.2.1",
+    "@ethereumjs/tx": "^4.0.2",
+    "@ethereumjs/util": "^10.0.0",
+    "dotenv": "^16.5.0",
+    "ethereumjs-util": "^7.1.5",
+    "ethers": "^5.8.0",
+    "rlp": "^3.0.0"
+  }
+}
