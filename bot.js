@@ -31,7 +31,7 @@ const uln = new ethers.Contract(ulnAddress, ulnABI, walletDst);
 // === Logger ===
 console.log("🟢 Relayer bot running…");
 
-// === Helper ===
+// === Helper Functions ===
 function encodeIndex(index) {
   if (index === 0) return Buffer.from([0x80]);
   if (index < 128) return Buffer.from([index]);
@@ -59,12 +59,44 @@ function serializeTx(txData) {
   return tx.serialize();
 }
 
+// === Get Dynamic Gas Prices ===
+async function getGasParams() {
+  try {
+    const provider = walletDst.provider;
+    const feeData = await provider.getFeeData();
+    
+    // Increase gas prices by 20% to avoid replacement issues
+    const gasPrice = feeData.gasPrice ? feeData.gasPrice.mul(120).div(100) : null;
+    const maxFeePerGas = feeData.maxFeePerGas ? feeData.maxFeePerGas.mul(120).div(100) : null;
+    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas.mul(120).div(100) : null;
+
+    // EIP-1559 transaction (preferred)
+    if (maxFeePerGas && maxPriorityFeePerGas) {
+      return {
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        type: 2
+      };
+    }
+    
+    // Legacy transaction fallback
+    return {
+      gasPrice: gasPrice || ethers.utils.parseUnits("20", "gwei"),
+      type: 0
+    };
+  } catch (error) {
+    console.warn("⚠️ Could not fetch gas prices, using defaults");
+    return {
+      gasPrice: ethers.utils.parseUnits("20", "gwei"),
+      type: 0
+    };
+  }
+}
+
 // === Event Listener ===
 sender.on("Send", async (...args) => {
   const event = args[args.length - 1];
- const { sender: from, nonce, dstChainId, dstAddress: to, payload } = event.args;
-
-
+  const { sender: from, nonce, dstChainId, dstAddress: to, payload } = event.args;
 
   console.log("📨 New message TX:", event.transactionHash);
 
@@ -95,6 +127,9 @@ sender.on("Send", async (...args) => {
     console.log("Payload (hex):", ethers.utils.hexlify(payload));
     console.log("Proof (hex):", ethers.utils.hexlify(proofBytes));
 
+    // Get current gas parameters
+    const gasParams = await getGasParams();
+
     // Step 2: Validate transaction proof on ULN
     const validateTx = await uln.validateTransactionProof(
       dstChainId,
@@ -102,10 +137,19 @@ sender.on("Send", async (...args) => {
       500000,
       receipt.blockHash,
       proofBytes,
-      { gasLimit: 1_000_000 }
+      { 
+        gasLimit: 1_000_000,
+        ...gasParams
+      }
     );
     await validateTx.wait();
     console.log("✅ Proof validated on ULN");
+
+    // Wait a bit to avoid nonce conflicts
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Get fresh gas params for second transaction
+    const gasParams2 = await getGasParams();
 
     // Step 3: Deliver payload to receiver
     const rx = await endpointDst.receivePayload(
@@ -114,13 +158,26 @@ sender.on("Send", async (...args) => {
       receiverAddr,
       nonce,
       payload,
-      { gasLimit: 1_000_000 }
+      { 
+        gasLimit: 1_000_000,
+        ...gasParams2
+      }
     );
     await rx.wait();
     console.log("✅ Payload delivered to Receiver UA");
 
   } catch (err) {
     console.error("❌ Relay failed:", err.message || err);
+    if (err.code === 'REPLACEMENT_UNDERPRICED') {
+      console.error("💡 Tip: This usually means there's a pending transaction with the same nonce");
+      console.error("   Wait for pending transactions to complete or increase gas prices");
+    }
     if (err.stack) console.error("Stack:", err.stack);
   }
+});
+
+// Add graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down relayer bot...');
+  process.exit(0);
 });
