@@ -22,9 +22,24 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     using SafeERC20 for IERC20;
     using SafeMath for uint;
 
+
+address public oracle;
+
+modifier onlyOracle() {
+    require(msg.sender == oracle, "Not authorized oracle");
+    _;
+}
+
+function setOracle(address _oracle) external onlyOwner {
+    oracle = _oracle;
+}
+
+
+
     struct BlockData {
         uint confirmations;
         bytes32 data;
+          uint64 timestamp;
     }
 
     // Application config
@@ -76,6 +91,8 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     mapping(uint16 => mapping(uint16 => bool)) public supportedOutboundProof; // chainId => outboundProofType => enabled
     mapping(uint16 => uint) public chainAddressSizeMap;
     mapping(address => mapping(uint16 => mapping(bytes32 => BlockData))) public hashLookup;
+    mapping(uint16 => mapping(uint64 => BlockData)) public blocks;
+
     mapping(uint16 => bytes32) public ulnLookup; // remote ulns
 
     ILayerZeroEndpoint public immutable endpoint;
@@ -97,6 +114,8 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     event WithdrawZRO(address _msgSender, address _to, uint _amount);
     event WithdrawNative(uint8 _type, address _owner, address _msgSender, address _to, uint _amount);
     event SetOracle(uint16 remoteChainId, address oracle);
+    event BlockSubmitted(uint16 srcChainId, uint64 blockNumber, bytes32 blockHash, uint64 timestamp);
+
 
 
     constructor(address _endpoint) {
@@ -116,6 +135,21 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     function setOracle(uint16 _remoteChainId, address _oracle) external onlyOwner {
     oracles[_remoteChainId] = _oracle;
     emit SetOracle(_remoteChainId, _oracle);
+}
+
+function submitBlock(
+    uint16 srcChainId,
+    uint64 blockNumber,
+    bytes32 blockHash,
+    uint64 timestamp
+) external onlyOracle {
+    blocks[srcChainId][blockNumber] = BlockData({
+    confirmations: 0,
+    data: blockHash,
+    timestamp: timestamp
+});
+
+    emit BlockSubmitted(srcChainId, blockNumber, blockHash, timestamp);
 }
 
 

@@ -7,7 +7,7 @@ contract Sender {
     ILayerZeroEndpoint public endpoint;
     mapping(uint16 => address) public remotes;
 
-    event Send(address indexed sender, uint64 nonce, uint16 dstChainId, bytes dstAddress, bytes payload); // ADD THIS
+    event Send(address indexed sender, uint64 nonce, uint16 dstChainId, bytes dstAddress, bytes payload);
 
     constructor(address _endpoint) {
         endpoint = ILayerZeroEndpoint(_endpoint);
@@ -25,11 +25,18 @@ contract Sender {
         require(msg.value > 0, "No TAN sent");
         require(remotes[_dstChainId] != address(0), "Remote not set");
 
+        // 🔥 Burn TAN by sending to a burn address (irrecoverable)
+        (bool success, ) = address(0x000000000000000000000000000000000000dEaD).call{value: msg.value}("");
+        require(success, "Burn failed");
+
+        // Prepare payload
         bytes memory payload = abi.encode(uint8(1), msg.sender, msg.value);
 
-        uint64 nonce = endpoint.getOutboundNonce(_dstChainId, address(this)); // GET NONCE
+        // Fetch outbound nonce
+        uint64 nonce = endpoint.getOutboundNonce(_dstChainId, address(this));
 
-        endpoint.send{value: msg.value}(
+        // Send the payload with 0 value (already burned)
+        endpoint.send{value: 0}(
             _dstChainId,
             abi.encodePacked(remotes[_dstChainId]),
             payload,
@@ -38,6 +45,6 @@ contract Sender {
             bytes("")
         );
 
-        emit Send(msg.sender, nonce, _dstChainId, abi.encodePacked(remotes[_dstChainId]), payload); // EMIT IT
+        emit Send(msg.sender, nonce, _dstChainId, abi.encodePacked(remotes[_dstChainId]), payload);
     }
 }

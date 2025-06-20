@@ -50,7 +50,7 @@ async function main() {
     // If the owner is not the deployer or receiver, transfer ownership to the Receiver contract
     if (owner !== recieverAddress) {
         console.log("Transferring ownership of WTAN to Receiver contract...");
-        const tx = await wtan.transferOwnership(recieverAddress, {
+        const tx = await wtan.transferOwnership(deployer.address, {
             ...(gasPrice ? { gasPrice } : {}),
         });
         await tx.wait();
