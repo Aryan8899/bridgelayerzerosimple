@@ -3,18 +3,19 @@ const fs = require("fs");
 
 async function main() {
     const [deployer] = await ethers.getSigners();
-    console.log("Setting up bridge connection with account:", deployer.address);
+    console.log("🔧 Setting up bridge connection with account:", deployer.address);
 
     const network = await ethers.provider.getNetwork();
-    console.log("Current network:", network.name, "Chain ID:", network.chainId);
+    const chainId = network.chainId;
+    console.log("🌐 Current network:", network.name, "Chain ID:", chainId);
 
     let filenameNetworkName;
-    if (network.chainId.toString() === "4442") {
+    if (chainId === 4442) {
         filenameNetworkName = "tan";
-    } else if (network.chainId.toString() === "11155111") {
+    } else if (chainId === 11155111) {
         filenameNetworkName = "sepolia";
     } else {
-        filenameNetworkName = network.name || network.chainId.toString();
+        throw new Error("Unsupported network");
     }
 
     const getGasPrice = async () => {
@@ -26,74 +27,65 @@ async function main() {
                     maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.mul(110).div(100) || ethers.utils.parseUnits("2", "gwei")
                 };
             } else if (feeData.gasPrice) {
-                return {
-                    gasPrice: feeData.gasPrice.mul(120).div(100)
-                };
+                return { gasPrice: feeData.gasPrice.mul(120).div(100) };
             } else {
-                return {
-                    gasPrice: ethers.utils.parseUnits("50", "gwei")
-                };
+                return { gasPrice: ethers.utils.parseUnits("50", "gwei") };
             }
-        } catch (e) {
-            console.warn("Error fetching gas price:", e.message);
-            return {
-                gasPrice: ethers.utils.parseUnits("50", "gwei")
-            };
+        } catch (err) {
+            console.warn("Gas price error:", err.message);
+            return { gasPrice: ethers.utils.parseUnits("50", "gwei") };
         }
     };
 
     const gasOptions = await getGasPrice();
 
-    const currentFile = `deployments/endpoint-${filenameNetworkName}.json`;
-    if (!fs.existsSync(currentFile)) throw new Error(`Missing local deployment file: ${currentFile}`);
+    const localPath = `deployments/endpoint-${filenameNetworkName}.json`;
+    if (!fs.existsSync(localPath)) throw new Error(`Missing local deployment file: ${localPath}`);
+    const localDeployment = JSON.parse(fs.readFileSync(localPath, "utf8"));
 
-    const currentDeployment = JSON.parse(fs.readFileSync(currentFile, "utf8"));
-    const senderAddress = currentDeployment.contracts?.sender;
-    const wtanAddress = currentDeployment.contracts?.wtan;
+    const senderAddress = localDeployment.contracts?.sender;
+    const wtanAddress = localDeployment.contracts?.wtan;
 
-    if (!senderAddress) throw new Error("Sender address missing in local deployment file.");
-    if (!wtanAddress) throw new Error("WTAN address missing in local deployment file.");
+    if (!senderAddress || !wtanAddress) throw new Error("Missing sender or WTAN address in local deployment.");
 
-    let remoteNetwork, remoteFile, remoteLzChainId;
-    if (network.chainId === 11155111) {
+    let remoteNetwork, remotePath, remoteLzChainId;
+    if (chainId === 11155111) {
         remoteNetwork = "tan";
-        remoteFile = `deployments/endpoint-tan.json`;
+        remotePath = `deployments/endpoint-tan.json`;
         remoteLzChainId = 4442;
     } else {
         remoteNetwork = "sepolia";
-        remoteFile = `deployments/endpoint-sepolia.json`;
+        remotePath = `deployments/endpoint-sepolia.json`;
         remoteLzChainId = 10161;
     }
 
-    if (!fs.existsSync(remoteFile)) {
-        console.warn(`❌ Remote deployment not found: ${remoteFile}`);
-        currentDeployment.bridgeSetup = {
+    if (!fs.existsSync(remotePath)) {
+        console.warn(`❌ Remote deployment not found: ${remotePath}`);
+        localDeployment.bridgeSetup = {
             remoteNetwork,
             remoteLzChainId,
-            remoteFile,
+            remotePath,
             instructions: [
-                "1. Deploy all contracts on the remote network.",
-                "2. Ensure receiver is deployed and saved in deployment file.",
-                "3. Rerun this setup script."
+                "1. Deploy contracts on remote network.",
+                "2. Rerun this script after receiver is deployed."
             ]
         };
-        fs.writeFileSync(currentFile, JSON.stringify(currentDeployment, null, 2));
+        fs.writeFileSync(localPath, JSON.stringify(localDeployment, null, 2));
         return;
     }
 
-    const remoteDeployment = JSON.parse(fs.readFileSync(remoteFile, "utf8"));
+    const remoteDeployment = JSON.parse(fs.readFileSync(remotePath, "utf8"));
     const remoteReceiver = remoteDeployment.contracts?.receiver;
     const remoteWTAN = remoteDeployment.contracts?.wtan;
 
-    if (!remoteReceiver) throw new Error("Remote receiver address not found.");
-    if (!remoteWTAN) throw new Error("Remote WTAN address missing.");
+    if (!remoteReceiver || !remoteWTAN) throw new Error("Remote deployment missing receiver or WTAN address.");
 
     const sender = await ethers.getContractAt("contracts/Sender.sol:Sender", senderAddress);
 
     async function executeWithRetry(fn, label, retries = 3) {
         for (let i = 0; i < retries; i++) {
             try {
-                console.log(`${label} (attempt ${i + 1})`);
+                console.log(`${label} (attempt ${i + 1}/${retries})`);
                 const tx = await fn();
                 await tx.wait();
                 console.log(`✅ ${label} successful`);
@@ -112,7 +104,7 @@ async function main() {
         "Setting remote receiver"
     );
 
-    currentDeployment.bridgeSetup = {
+    localDeployment.bridgeSetup = {
         setupComplete: true,
         remoteNetwork,
         remoteLzChainId,
@@ -122,19 +114,19 @@ async function main() {
         gasOptionsUsed: gasOptions
     };
 
-    fs.writeFileSync(currentFile, JSON.stringify(currentDeployment, null, 2));
+    fs.writeFileSync(localPath, JSON.stringify(localDeployment, null, 2));
 
-    console.log("🎉 Bridge setup complete.");
-    console.log("🔗 Local sender:", senderAddress);
-    console.log("📥 Remote receiver:", remoteReceiver);
+    console.log("🎉 Bridge setup complete");
+    console.log("🔗 Sender:", senderAddress);
+    console.log("📥 Receiver:", remoteReceiver);
     console.log("🪙 WTAN (local):", wtanAddress);
     console.log("🪙 WTAN (remote):", remoteWTAN);
-    console.log("🌐 Bridged to:", remoteNetwork);
+    console.log("🌐 Remote:", remoteNetwork);
 }
 
 main()
     .then(() => process.exit(0))
-    .catch((err) => {
-        console.error("❌ Error in setup:", err);
+    .catch(err => {
+        console.error("❌ Setup error:", err);
         process.exit(1);
     });

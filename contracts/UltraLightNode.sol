@@ -34,6 +34,8 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     uint public constant CONFIG_TYPE_OUTBOUND_PROOF_TYPE = 4;
     uint public constant CONFIG_TYPE_OUTBOUND_BLOCK_CONFIRMATIONS = 5;
     uint public constant CONFIG_TYPE_ORACLE = 6;
+    mapping(uint16 => address) public oracles;
+
 
     struct ApplicationConfiguration {
         uint16 inboundProofLibraryVersion;
@@ -94,6 +96,8 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
     event SetTreasury(address treasuryAddress);
     event WithdrawZRO(address _msgSender, address _to, uint _amount);
     event WithdrawNative(uint8 _type, address _owner, address _msgSender, address _to, uint _amount);
+    event SetOracle(uint16 remoteChainId, address oracle);
+
 
     constructor(address _endpoint) {
         require(_endpoint != address(0x0), "LayerZero: endpoint cannot be zero address");
@@ -108,6 +112,12 @@ contract UltraLightNode is ILayerZeroMessagingLibrary, ILayerZeroUltraLightNodeV
 
     //----------------------------------------------------------------------------------
     // PROTOCOL
+
+    function setOracle(uint16 _remoteChainId, address _oracle) external onlyOwner {
+    oracles[_remoteChainId] = _oracle;
+    emit SetOracle(_remoteChainId, _oracle);
+}
+
 
     // This function completes delivery of a LayerZero message.
     //

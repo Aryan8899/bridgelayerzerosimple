@@ -67,7 +67,7 @@ async function main() {
   const { contract: wtan, gasUsed: g5 } = await deployWithGasEstimation("WTAN", WTAN, [], gasOverrides);
   deploymentData.contracts.wtan = wtan.address;
 
-  const totalGas = g1.add(g2).add(g3).add(g4).add(g5).add(rc1.gasUsed).add(rc2.gasUsed);
+  const totalGas = g1.add(g2).add(g3).add(g4).add(rc1.gasUsed).add(rc2.gasUsed);
   const deploymentPath = `deployments/endpoint-${networkName}.json`;
 
   fs.mkdirSync("deployments", { recursive: true });

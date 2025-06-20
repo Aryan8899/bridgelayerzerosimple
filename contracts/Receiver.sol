@@ -2,6 +2,7 @@
 pragma solidity ^0.7.6;
 
 import { ILayerZeroReceiver } from "./interfaces/ILayerZeroReceiver.sol";
+import { ILayerZeroEndpoint } from "./interfaces/ILayerZeroEndpoint.sol";
 import "./WTAN.sol";
 
 contract Receiver is ILayerZeroReceiver {
@@ -12,7 +13,7 @@ contract Receiver is ILayerZeroReceiver {
     constructor(address _wtan, address _endpoint) {
         wtan = WTAN(_wtan);
         endpoint = _endpoint;
-        owner = msg.sender;  // Assign the deployer as the owner
+        owner = msg.sender;
     }
 
     modifier onlyOwner() {
@@ -28,22 +29,35 @@ contract Receiver is ILayerZeroReceiver {
     event NativeBridged(address indexed user, uint256 amount);
     event NativeUnwrapped(address indexed user, uint256 amount);
 
-    // Internal mint function - only callable by this contract
-    function _mintWTAN(address to, uint256 amount) internal {
-        wtan.mint(to, amount);
+    /// @notice Called by the app owner to whitelist a relayer
+    function whitelistRelayer(
+        address _endpoint,
+        uint16 dstChainId,
+        address relayer
+    ) external onlyOwner {
+        bytes memory config = abi.encode(relayer);
+        ILayerZeroEndpoint(_endpoint).setConfig(
+            3, // CONFIG_TYPE_RELAYER
+            dstChainId,
+uint256(uint160(address(this))),
+
+            config
+        );
     }
 
+    /// @notice Called by LayerZero endpoint to mint WTAN or unwrap native
     function lzReceive(
-        uint16, bytes calldata, uint64, bytes calldata payload
+        uint16,              // _srcChainId
+        bytes calldata,      // _srcAddress
+        uint64,              // _nonce
+        bytes calldata payload
     ) external override onlyEndpoint {
         (uint8 payloadType, address user, uint256 amount) = abi.decode(payload, (uint8, address, uint256));
 
         if (payloadType == 1) {
-            // TAN → Sepolia: mint WTAN
-            _mintWTAN(user, amount);
+            wtan.mint(user, amount);
             emit NativeBridged(user, amount);
         } else if (payloadType == 2) {
-            // Sepolia → TAN: unwrap WTAN and send native
             (bool success, ) = user.call{value: amount}("");
             require(success, "Native transfer failed");
             emit NativeUnwrapped(user, amount);
@@ -52,17 +66,5 @@ contract Receiver is ILayerZeroReceiver {
         }
     }
 
-    // Emergency mint function (only for testing or special cases)
-    // function emergencyMint(address to, uint256 amount) external {
-    //     // Add your access control here if needed
-    //     // For example: require(msg.sender == owner, "Only owner");
-    //     _mintWTAN(to, amount);
-    // }
-
     receive() external payable {}
-
-    // Function to set the minter after deployment
-    function initialize() external onlyOwner {
-        wtan.setMinter(address(this));  // Set this contract as the minter for WTAN
-    }
 }
