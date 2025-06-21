@@ -1,30 +1,28 @@
-const { ethers } = require("ethers");
+const { ethers } = require("hardhat");
 const fs = require("fs");
-require("dotenv").config();
+const path = require("path");
 
 async function main() {
-  const PRIVATE_KEY = "2b12cb7d0171802df82fc69aca38ad8356343c91ec246a4b2e9d665a6206d4ee";
-  const SEPOLIA_RPC = "https://eth-sepolia.g.alchemy.com/v2/B7X9gRjxfPZ9uOYogYWOy";
-  const provider = new ethers.providers.JsonRpcProvider(SEPOLIA_RPC);
-  const signer = new ethers.Wallet(PRIVATE_KEY, provider);
+  const signer = (await ethers.getSigners())[0];
   console.log("🛠️ Using signer:", signer.address);
 
-  const ulnAddress = "0x6338cc0F690E9eF6F962c5792D983Ba020A87026";
+  const ulnAddress = "0x6338cc0F690E9eF6F962c5792D983Ba020A87026"; // ULN contract address
   const chainId = 4442;
-  const newOracle = signer.address; // Or hardcode any other address
+  const newOracle = signer.address;
+console.log(signer.address)
+  // Correct ABI path — this should point to the actual artifact JSON file
+  const abiPath = path.join(
+    __dirname,
+    "../artifacts/contracts/UltraLightNode.sol/UltraLightNode.json"
+  );
+  const abi = JSON.parse(fs.readFileSync(abiPath, "utf8")).abi;
 
-  // ✅ Load ABI from compiled artifact
-  const ulnAbi = JSON.parse(
-    fs.readFileSync("./artifacts/contracts/UltraLightNode.sol/UltraLightNode.json", "utf8")
-  ).abi;
-
-  const uln = new ethers.Contract(ulnAddress, ulnAbi, signer);
-
+  const uln = new ethers.Contract(ulnAddress, abi, signer);
   console.log("📡 Calling setOracle...");
+
   const tx = await uln.setOracle(chainId, newOracle);
   console.log("⛓️ TX sent:", tx.hash);
   await tx.wait();
-
   console.log(`✅ Oracle for chain ${chainId} is now set to ${newOracle}`);
 }
 
