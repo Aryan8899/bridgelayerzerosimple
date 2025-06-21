@@ -4,8 +4,8 @@ async function main() {
   const signer = (await ethers.getSigners())[0];
   console.log("🛠️ Using signer:", signer.address);
 
-  const ulnAddress = "0x8691eFC4cD7d0B7463CE02E815cc0264D04AA2b2"; // ULN on Sepolia
-  const relayerAddress = "0xb9C2642d09E1e0697499c746d4dC9725E5671b8e"; // NEW relayer
+  const ulnAddress = "0x1406dC024F2f5e542b185f5639f12b8d32B725B5"; // ULN on Sepolia
+  const relayerAddress = "0xc285D7192174486f038A4de931cb4F99DdaeF4C3"; // NEW relayer
 
   const uln = await ethers.getContractAt("UltraLightNode", ulnAddress, signer);
 
