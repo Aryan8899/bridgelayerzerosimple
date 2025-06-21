@@ -1,20 +1,20 @@
 {
   "contracts": {
-    "library": "0x344EF17eFC317B89C8AaF64EE2c9a69CF7D49824",
-    "endpoint": "0x3A8e020894D288abCbc2975FF4d535d8CBdA2490",
-    "uln": "0x1406dC024F2f5e542b185f5639f12b8d32B725B5",
-    "relayer": "0xaF24dC7B101000682b64fE03622eD3c862a45BF8",
-    "wtan": "0x88d43991626DdA62A52f9F27B8B7392e1e544aDd",
-    "sender": "0x3d94E296BE8336Ed50f07E4143e329BC50d31CB4",
-    "receiver": "0xfc2e86f487E0B85A9022dF0ad1d307870f54d3f9"
+    "library": "0x639EbfE1206c31767489c580f293995805840430",
+    "endpoint": "0x427B732Da96775A2BB4578b08c3D276141265fDd",
+    "uln": "0x6338cc0F690E9eF6F962c5792D983Ba020A87026",
+    "relayer": "0xAd24D4dc091cf125212F2a016086edf074372940",
+    "wtan": "0x57e501d5E1f87557df2687d47bb94c0534fa2779",
+    "sender": "0x5B52B0C2f6394680248Fb1CED329d57e07697Fe9",
+    "receiver": "0xc0721D2e8939f1b6EB0ee2B1D9E0955f93fa6C8B"
   },
   "setupComplete": true,
   "libraryVersion": "1",
-  "setupTimestamp": "2025-06-20T12:29:40.218Z",
+  "setupTimestamp": "2025-06-21T13:02:19.654Z",
   "gasOptionsUsed": {
     "maxFeePerGas": {
       "type": "BigNumber",
-      "hex": "0x7290e21d"
+      "hex": "0x6b58bf64"
     },
     "maxPriorityFeePerGas": {
       "type": "BigNumber",
@@ -22,19 +22,19 @@
     }
   },
   "contractsDeployed": true,
-  "contractsTimestamp": "2025-06-20T12:30:28.546Z",
+  "contractsTimestamp": "2025-06-21T13:04:44.180Z",
   "contractsGasOptions": {},
   "bridgeSetup": {
     "setupComplete": true,
     "remoteNetwork": "tan",
     "remoteLzChainId": 4442,
-    "remoteReceiver": "0x96C57d99023d1602C05434C60FcceaA52bd2b482",
-    "remoteWTAN": "0x566c7a53859ca8c88D59d3E9E503Af5220fc586c",
-    "setupTimestamp": "2025-06-20T12:30:54.630Z",
+    "remoteReceiver": "0xE49195Ac01Ca88b96BE5CB826F1c4467a8A442A0",
+    "remoteWTAN": "0xa75ce99865cf0705437956EB25ae5D736e309559",
+    "setupTimestamp": "2025-06-21T13:08:18.405Z",
     "gasOptionsUsed": {
       "maxFeePerGas": {
         "type": "BigNumber",
-        "hex": "0x728b01c6"
+        "hex": "0x6b618b3a"
       },
       "maxPriorityFeePerGas": {
         "type": "BigNumber",

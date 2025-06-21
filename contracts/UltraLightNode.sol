@@ -183,6 +183,7 @@ function submitBlock(
             uint remoteAddressSize = chainAddressSizeMap[_srcChainId];
             _packet = ILayerZeroValidationLibrary(inboundProofLib).validateProof(blockData.data, _transactionProof, remoteAddressSize);
         }
+        
 
         // (e) assert that the packet was emitted by the source ultra light node
         require(ulnLookup[_srcChainId] == _packet.ulnAddress, "LayerZero: _packet.ulnAddress is invalid");

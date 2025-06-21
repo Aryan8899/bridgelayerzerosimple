@@ -1,40 +1,34 @@
-const { ethers } = require("hardhat");
+const { ethers } = require("ethers");
 const fs = require("fs");
+require("dotenv").config();
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-  console.log(`🛠️ Using signer: ${deployer.address}`);
+  const PRIVATE_KEY = "2b12cb7d0171802df82fc69aca38ad8356343c91ec246a4b2e9d665a6206d4ee";
+  const SEPOLIA_RPC = "https://eth-sepolia.g.alchemy.com/v2/B7X9gRjxfPZ9uOYogYWOy";
+  const provider = new ethers.providers.JsonRpcProvider(SEPOLIA_RPC);
+  const signer = new ethers.Wallet(PRIVATE_KEY, provider);
+  console.log("🛠️ Using signer:", signer.address);
 
-  const network = hre.network.name;
-  const deploymentPath = `deployments/endpoint-${network}.json`;
+  const ulnAddress = "0x6338cc0F690E9eF6F962c5792D983Ba020A87026";
+  const chainId = 4442;
+  const newOracle = signer.address; // Or hardcode any other address
 
-  if (!fs.existsSync(deploymentPath)) {
-    throw new Error(`❌ Deployment file not found: ${deploymentPath}`);
-  }
+  // ✅ Load ABI from compiled artifact
+  const ulnAbi = JSON.parse(
+    fs.readFileSync("./artifacts/contracts/UltraLightNode.sol/UltraLightNode.json", "utf8")
+  ).abi;
 
-  const deploymentData = JSON.parse(fs.readFileSync(deploymentPath));
-  const ulnAddress = deploymentData.contracts.uln;
-  const oracleAddress = deploymentData.contracts.oracle;
+  const uln = new ethers.Contract(ulnAddress, ulnAbi, signer);
 
-  if (!oracleAddress) throw new Error("❌ Oracle address missing in deployment JSON");
-
-  // Set your remote chain ID manually depending on which direction you're configuring
-  const remoteChainId = network === "tan" ? 10161 : 4442;
-
-
-  const ULN = await ethers.getContractAt("UltraLightNode", ulnAddress);
-
-  console.log(`📍 Setting oracle ${oracleAddress} for remoteChainId ${remoteChainId}`);
-  const tx = await ULN.setOracle(remoteChainId, oracleAddress, {
-  gasPrice: ethers.utils.parseUnits("10", "gwei") // or higher if needed
-});
-  console.log(`⛓️ TX sent: ${tx.hash}`);
+  console.log("📡 Calling setOracle...");
+  const tx = await uln.setOracle(chainId, newOracle);
+  console.log("⛓️ TX sent:", tx.hash);
   await tx.wait();
 
-  console.log(`✅ Oracle set successfully for chain ${remoteChainId}`);
+  console.log(`✅ Oracle for chain ${chainId} is now set to ${newOracle}`);
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch((err) => {
+  console.error("❌ Error:", err);
   process.exit(1);
 });

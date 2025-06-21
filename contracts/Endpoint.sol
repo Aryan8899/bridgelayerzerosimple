@@ -7,6 +7,7 @@ import "./interfaces/ILayerZeroEndpoint.sol";
 import "./interfaces/ILayerZeroMessagingLibrary.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IUltraLightNode.sol";
 
 contract Endpoint is Ownable, ILayerZeroEndpoint {
     uint16 public immutable chainId;
@@ -104,6 +105,8 @@ contract Endpoint is Ownable, ILayerZeroEndpoint {
     uln = _uln;
 }
 
+
+
     //---------------------------------------------------------------------------
     // authenticated Library (msg.sender) Calls to pass through Endpoint to UA (dstAddress)
     function receivePayload(uint16 _srcChainId, bytes calldata _srcAddress, address _dstAddress, uint64 _nonce, uint _gasLimit, bytes calldata _payload) external override receiveNonReentrant {
@@ -190,6 +193,11 @@ contract Endpoint is Ownable, ILayerZeroEndpoint {
         require(_version != BLOCK_VERSION, "LayerZero: can not set config for BLOCK_VERSION");
         libraryLookup[_version].setConfig(_chainId, msg.sender, _configType, _config);
     }
+
+function configureULN(uint16 srcChainId, address dstAddress, address relayer) external {
+    bytes memory relayerConfig = abi.encode(relayer);
+    IUltraLightNode(uln).setConfig(srcChainId, dstAddress, 1, relayerConfig);
+}
 
     // Migration step 1: set the send version
     // Define what library the UA points too
