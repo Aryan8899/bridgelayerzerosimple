@@ -135,7 +135,7 @@ async function main() {
     console.log("📤 Deploying Sender on TAN...");
     sender = await deployWithGasEstimation(
       "contracts/Sender.sol:Sender",
-      [endpointAddress],
+      [endpointAddress,wtanAddress],
       "Sender deployment"
     );
     console.log("✓ Sender deployed to:", sender.address);
