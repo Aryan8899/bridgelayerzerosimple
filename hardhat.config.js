@@ -15,7 +15,7 @@ module.exports = {
   },
   networks: {
     sepolia: {
-      url: "https://eth-sepolia.g.alchemy.com/v2/B7X9gRjxfPZ9uOYogYWOy",
+      url: "https://eth-sepolia.g.alchemy.com/v2/v9nJ1WrWkOCwJzsXEB6PRfMcE5UwP3NW",
       accounts: ["2b12cb7d0171802df82fc69aca38ad8356343c91ec246a4b2e9d665a6206d4ee"]
     },
     tan: {
