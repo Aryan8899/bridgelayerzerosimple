@@ -27,6 +27,28 @@ const sender = new ethers.Contract(senderAddr, senderABI, provSrc);
 const endpointDst = new ethers.Contract(endpointDstAddr, endpointABI, walletDst);
 const uln = new ethers.Contract(ulnAddress, ulnABI, walletDst);
 
+// Nonce management
+let localNonce = null;
+
+async function getNextNonce() {
+  const networkNonce = await walletSrc.getTransactionCount("pending");
+  
+  if (localNonce === null || networkNonce > localNonce) {
+    localNonce = networkNonce;
+  }
+  
+  return localNonce;
+}
+
+function incrementNonce() {
+  if (localNonce !== null) {
+    localNonce++;
+  }
+}
+
+// Track pending transactions to avoid duplicates
+const pendingTxs = new Set();
+
 function encodeIndex(index) {
   if (index === 0) return Buffer.from([0x80]);
   if (index < 128) return Buffer.from([index]);
@@ -69,11 +91,39 @@ async function getGasParams() {
     : { type: 0, gasPrice: feeData.gasPrice || ethers.utils.parseUnits("30", "gwei") };
 }
 
-let lastNonceUsed = null;
+async function sendTransactionWithRetry(txData, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const tx = await walletSrc.sendTransaction(txData);
+      return tx;
+    } catch (error) {
+      if (error.code === 'SERVER_ERROR' && error.body && error.body.includes('already known')) {
+        console.log(`⚠️ Transaction already known (nonce ${txData.nonce}), skipping...`);
+        return null; // Transaction already submitted
+      }
+      
+      if (error.code === 'NONCE_EXPIRED' || error.message.includes('nonce too low')) {
+        console.log(`⚠️ Nonce too low, refreshing nonce and retrying... (attempt ${attempt + 1})`);
+        // Reset local nonce to force refresh
+        localNonce = null;
+        txData.nonce = await getNextNonce();
+        incrementNonce();
+        continue;
+      }
+      
+      if (attempt === maxRetries - 1) {
+        throw error; // Last attempt, throw the error
+      }
+      
+      console.log(`⚠️ Transaction failed (attempt ${attempt + 1}), retrying...`, error.message);
+      await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+    }
+  }
+}
 
 async function bundleDummyTxsInSameBlock() {
   const gasPrice = ethers.utils.parseUnits("30", "gwei");
-  const currentNonce = await walletSrc.getTransactionCount("pending"); // <-- MOVE this INSIDE function call
+  const currentNonce = await getNextNonce();
 
   const tx1 = {
     to: walletSrc.address,
@@ -93,16 +143,58 @@ async function bundleDummyTxsInSameBlock() {
     type: 0,
   };
 
-  const signedTx1 = await walletSrc.signTransaction(tx1);
-  const signedTx2 = await walletSrc.signTransaction(tx2);
+  // Create unique identifiers for transactions
+  const tx1Hash = ethers.utils.keccak256(ethers.utils.RLP.encode([
+    ethers.utils.hexlify(tx1.nonce),
+    ethers.utils.hexlify(tx1.gasPrice),
+    ethers.utils.hexlify(tx1.gasLimit),
+    tx1.to,
+    ethers.utils.hexlify(tx1.value),
+    '0x'
+  ]));
+  const tx2Hash = ethers.utils.keccak256(ethers.utils.RLP.encode([
+    ethers.utils.hexlify(tx2.nonce),
+    ethers.utils.hexlify(tx2.gasPrice),
+    ethers.utils.hexlify(tx2.gasLimit),
+    tx2.to,
+    ethers.utils.hexlify(tx2.value),
+    '0x'
+  ]));
 
-  await provSrc.sendTransaction(signedTx1);
-  await provSrc.sendTransaction(signedTx2);
+  // Check if transactions are already pending
+  if (pendingTxs.has(tx1Hash) || pendingTxs.has(tx2Hash)) {
+    console.log('⚠️ Dummy transactions already pending, skipping...');
+    return;
+  }
 
-  console.log(`📤 Bundled dummy txs with nonce ${currentNonce} and ${currentNonce + 1}`);
+  pendingTxs.add(tx1Hash);
+  pendingTxs.add(tx2Hash);
+
+  try {
+    const signedTx1 = await walletSrc.signTransaction(tx1);
+    const signedTx2 = await walletSrc.signTransaction(tx2);
+
+    await sendTransactionWithRetry(tx1);
+    await sendTransactionWithRetry(tx2);
+
+    // Update local nonce
+    localNonce = currentNonce + 2;
+
+    console.log(`📤 Bundled dummy txs with nonce ${currentNonce} and ${currentNonce + 1}`);
+    
+    // Clean up pending transactions after some time
+    setTimeout(() => {
+      pendingTxs.delete(tx1Hash);
+      pendingTxs.delete(tx2Hash);
+    }, 60000); // Remove after 1 minute
+    
+  } catch (error) {
+    pendingTxs.delete(tx1Hash);
+    pendingTxs.delete(tx2Hash);
+    console.error('❌ Failed to send dummy transactions:', error.message);
+    throw error;
+  }
 }
-
-
 
 sender.on("Send", async (...args) => {
   const event = args[args.length - 1];
@@ -120,7 +212,13 @@ sender.on("Send", async (...args) => {
     let found = false;
 
     for (let i = 0; i < 10; i++) {
-      await bundleDummyTxsInSameBlock();
+      try {
+        await bundleDummyTxsInSameBlock();
+      } catch (error) {
+        console.error(`❌ Failed to bundle dummy txs (attempt ${i + 1}):`, error.message);
+        // Continue to next iteration instead of breaking
+      }
+      
       console.log("⏳ Waiting 15s for new block...");
       await new Promise(r => setTimeout(r, 15000));
 
@@ -162,9 +260,9 @@ sender.on("Send", async (...args) => {
 
   console.log("trans");
   console.log(block.transactions.length);
-  console.log("reciver add is",receiverAddr);
-  console.log("the 2nd thins is ",blockHash);
-  console.log("the proff bytes",proofBytes);
+  console.log("reciver add is", receiverAddr);
+  console.log("the 2nd thins is ", blockHash);
+  console.log("the proff bytes", proofBytes);
 
   try {
     const tx = await uln.validateTransactionProof(
@@ -176,21 +274,19 @@ sender.on("Send", async (...args) => {
       { gasLimit: 2_000_000, ...gasParams }
     );
     await tx.wait();
-  } catch {
-  console.warn("⚠️ RLP failed — trying encoded fallback...");
-const fallbackProof = proof.map(p => ethers.utils.hexlify(p));
-proofBytes = ethers.utils.RLP.encode(fallbackProof);
-const tx = await uln.validateTransactionProof(
-  4442,
-  receiverAddr,
-  500000,
-  blockHash,
-  proofBytes,
-  { gasLimit: 2_000_000, ...await getGasParams() }
-);
-await tx.wait();
-
-
+  } catch (error) {
+    console.warn("⚠️ RLP failed — trying encoded fallback...");
+    const fallbackProof = proof.map(p => ethers.utils.hexlify(p));
+    proofBytes = ethers.utils.RLP.encode(fallbackProof);
+    const tx = await uln.validateTransactionProof(
+      4442,
+      receiverAddr,
+      500000,
+      blockHash,
+      proofBytes,
+      { gasLimit: 2_000_000, ...await getGasParams() }
+    );
+    await tx.wait();
   }
 
   const rx = await endpointDst.receivePayload(4442, from, receiverAddr, nonce, payload, {
@@ -210,4 +306,8 @@ await tx.wait();
   console.log("  - Receiver Address:", receiverAddr);
   console.log("  - ULN Address:", ulnAddress);
   console.log("  - Endpoint Address:", endpointDstAddr);
+  
+  // Initialize nonce
+  await getNextNonce();
+  console.log(`🔧 Initial nonce: ${localNonce}`);
 })();
