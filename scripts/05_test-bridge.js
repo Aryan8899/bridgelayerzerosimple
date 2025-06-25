@@ -22,10 +22,13 @@ async function main() {
 
     if (isTan) {
         console.log("➡️ Bridging native TAN → Sepolia (WTAN mint)");
-        const tx = await sender.sendNativeToRemote(remoteLzChainId, {
-            value,
+        
+        // Correct: sendNativeToRemote expects (chainId, amount) + transaction options
+        const tx = await sender.sendNativeToRemote(remoteLzChainId, value, {
+            value: value,
             gasPrice: ethers.utils.parseUnits("20", "gwei")
         });
+        
         const receipt = await tx.wait();
         console.log("✅ Sent TAN → TX:", tx.hash, "Gas used:", receipt.gasUsed.toString());
     } else {

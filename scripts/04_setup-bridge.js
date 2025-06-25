@@ -16,8 +16,8 @@ async function main() {
         filenameNetworkName = "sepolia";
     } else {
         throw new Error("Unsupported network");
-    }
-
+    }  
+    
     const getGasPrice = async () => {
         try {
             const feeData = await ethers.provider.getFeeData();
