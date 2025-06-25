@@ -61,6 +61,8 @@ function setOracle(address _oracle) external onlyOwner {
         address oracle;
     }
 
+   
+
     // Token and Contracts
     IERC20 public layerZeroToken;
     ILayerZeroTreasury public treasuryContract;
@@ -80,7 +82,7 @@ function setOracle(address _oracle) external onlyOwner {
 
 
     // User Application
-    mapping(address => mapping(uint16 => ApplicationConfiguration)) public appConfig; // app address => chainId => config
+    mapping(uint16 => mapping(address => ApplicationConfiguration)) public appConfig; // app address => chainId => config
     mapping(uint16 => ApplicationConfiguration) public defaultAppConfig; // default UA settings if no version specified
     mapping(uint16 => mapping(uint16 => bytes)) public defaultAdapterParams;
 
@@ -153,6 +155,7 @@ function submitBlock(
 }
 
 
+
     // This function completes delivery of a LayerZero message.
     //
     // In order to deliver the message, this function:
@@ -165,7 +168,7 @@ function submitBlock(
     // (f) the _dstAddress the specified destination contract
     function validateTransactionProof(uint16 _srcChainId, address _dstAddress, uint _gasLimit, bytes32 _lookupHash, bytes calldata _transactionProof) external override {
         // retrieve UA's configuration using the _dstAddress from arguments.
-        ApplicationConfiguration memory uaConfig = getAppConfig(_srcChainId, _dstAddress);
+        ApplicationConfiguration memory uaConfig = getAppConfigInternal(_srcChainId, _dstAddress);
 
         // (a) assert that the caller == UA's relayer
         require(uaConfig.relayer == msg.sender, "LayerZero: invalid relayer");
@@ -195,13 +198,37 @@ function submitBlock(
         endpoint.receivePayload(_packet.srcChainId, _packet.srcAddress, _packet.dstAddress, _packet.nonce, _gasLimit, _packet.payload);
     }
 
+  function setAppConfig(
+    uint16 _srcChainId,
+    address _dstAddress,
+    address _relayer,
+    address _oracle,
+    uint16 _inboundProofLibraryVersion,
+    uint16 _inboundBlockConfirmations
+) external override onlyOwner {
+    appConfig[_srcChainId][_dstAddress] = ApplicationConfiguration({
+        relayer: _relayer,
+        oracle: _oracle,
+        inboundProofLibraryVersion: _inboundProofLibraryVersion,
+        inboundBlockConfirmations: _inboundBlockConfirmations,
+        outboundProofType: 0,
+        outboundBlockConfirmations: 0
+    });
+}
+
+
+function getAppConfigInternal(uint16 _srcChainId, address _dstAddress) internal view returns (ApplicationConfiguration memory) {
+    return appConfig[_srcChainId][_dstAddress];
+}
+
+
     // Called (by the Endpoint) with the information required to send a LayerZero message for a User Application.
     // This function:
     // (a) pays the protocol (native token or ZRO), oracle (native token) and relayer (native token) for their roles in sending the message.
     // (b) generates the message payload and emits events of the message and adapterParams
     // (c) notifies the oracle
     function send(address _ua, uint64 _nonce, uint16 _chainId, bytes calldata _destination, bytes calldata _payload, address payable _refundAddress, address _zroPaymentAddress, bytes calldata _adapterParams) external payable override onlyEndpoint {
-        ApplicationConfiguration memory uaConfig = getAppConfig(_chainId, _ua);
+       ApplicationConfiguration memory uaConfig = getAppConfigInternal(_chainId, _ua); 
         address ua = _ua;
         uint64 nonce = _nonce;
         uint16 chainId = _chainId;
@@ -300,39 +327,26 @@ function submitBlock(
     // Other Library Interfaces
 
     // default to DEFAULT setting if ZERO value
-    function getAppConfig(uint16 _chainId, address userApplicationAddress) public view returns (ApplicationConfiguration memory) {
-        ApplicationConfiguration memory config = appConfig[userApplicationAddress][_chainId];
-        ApplicationConfiguration storage defaultConfig = defaultAppConfig[_chainId];
+    function getAppConfig(
+    uint16 _srcChainId,
+    address _dstAddress
+) external view override returns (
+    address relayer,
+    address oracle,
+    uint16 inboundProofLibraryVersion,
+    uint16 inboundBlockConfirmations
+) {
+    ApplicationConfiguration memory config = appConfig[_srcChainId][_dstAddress];
 
-        if (config.inboundProofLibraryVersion == 0) {
-            config.inboundProofLibraryVersion = defaultConfig.inboundProofLibraryVersion;
-        }
+    relayer = config.relayer;
+    oracle = config.oracle;
+    inboundProofLibraryVersion = config.inboundProofLibraryVersion;
+    inboundBlockConfirmations = uint16(config.inboundBlockConfirmations);
+}
 
-        if (config.inboundBlockConfirmations == 0) {
-            config.inboundBlockConfirmations = defaultConfig.inboundBlockConfirmations;
-        }
-
-        if (config.relayer == address(0x0)) {
-            config.relayer = defaultConfig.relayer;
-        }
-
-        if (config.outboundProofType == 0) {
-            config.outboundProofType = defaultConfig.outboundProofType;
-        }
-
-        if (config.outboundBlockConfirmations == 0) {
-            config.outboundBlockConfirmations = defaultConfig.outboundBlockConfirmations;
-        }
-
-        if (config.oracle == address(0x0)) {
-            config.oracle = defaultConfig.oracle;
-        }
-
-        return config;
-    }
 
     function setConfig(uint16 chainId, address _ua, uint _configType, bytes calldata _config) external override onlyEndpoint {
-        ApplicationConfiguration storage uaConfig = appConfig[_ua][chainId];
+        ApplicationConfiguration storage uaConfig = appConfig[chainId][_ua];
         if (_configType == CONFIG_TYPE_INBOUND_PROOF_LIBRARY_VERSION) {
             uint16 inboundProofLibraryVersion = abi.decode(_config, (uint16));
             require(inboundProofLibraryVersion <= maxInboundProofLibrary[chainId], "LayerZero: invalid inbound proof library version");
@@ -361,7 +375,8 @@ function submitBlock(
     }
 
     function getConfig(uint16 _chainId, address userApplicationAddress, uint _configType) external view override returns (bytes memory) {
-        ApplicationConfiguration storage uaConfig = appConfig[userApplicationAddress][_chainId];
+ApplicationConfiguration storage uaConfig = appConfig[_chainId][userApplicationAddress];
+
 
         if (_configType == CONFIG_TYPE_INBOUND_PROOF_LIBRARY_VERSION) {
             if (uaConfig.inboundProofLibraryVersion == 0) {
@@ -405,7 +420,7 @@ function submitBlock(
         uint payloadSize = _payload.length;
         bytes memory adapterParam = _adapterParams;
 
-        ApplicationConfiguration memory uaConfig = getAppConfig(chainId, ua);
+        ApplicationConfiguration memory uaConfig = getAppConfigInternal(chainId, ua);
 
         // Relayer Fee
         uint relayerFee;
