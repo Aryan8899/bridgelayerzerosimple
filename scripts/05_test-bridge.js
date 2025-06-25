@@ -23,14 +23,21 @@ async function main() {
     if (isTan) {
         console.log("➡️ Bridging native TAN → Sepolia (WTAN mint)");
         
-        // Correct: sendNativeToRemote expects (chainId, amount) + transaction options
-        const tx = await sender.sendNativeToRemote(remoteLzChainId, value, {
+        // FIXED: Call sendNativeToRemote with the correct parameters
+        const tx = await sender.sendNativeToRemote(remoteLzChainId, {
             value: value,
             gasPrice: ethers.utils.parseUnits("20", "gwei")
         });
         
         const receipt = await tx.wait();
         console.log("✅ Sent TAN → TX:", tx.hash, "Gas used:", receipt.gasUsed.toString());
+        
+        // ADDED: Log the events emitted
+        console.log("📊 Events emitted:");
+        receipt.events?.forEach((event, index) => {
+            console.log(`  Event ${index}:`, event.event, event.args);
+        });
+        
     } else {
         console.log("🔓 Approving Sender to use WTAN...");
         const approveTx = await wtan.approve(sender.address, value);
@@ -42,6 +49,12 @@ async function main() {
         });
         const receipt = await tx.wait();
         console.log("✅ Sent WTAN → TX:", tx.hash, "Gas used:", receipt.gasUsed.toString());
+        
+        // ADDED: Log the events emitted
+        console.log("📊 Events emitted:");
+        // receipt.events?.forEach((event, index) => {
+        //     console.log(`  Event ${index}:`, event.event, event.args);
+        // });
     }
 
     console.log("🎉 Bridge test complete.");

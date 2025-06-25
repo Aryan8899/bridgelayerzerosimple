@@ -2,28 +2,29 @@
 pragma solidity 0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract WTAN is ERC20, Ownable {
-    address public minter;
-    
+contract WTAN is ERC20 {
+    address public receiver;
+
     constructor() ERC20("Wrapped TAN", "WTAN") {
-
-        _mint(msg.sender, 1000000 * 10 ** decimals());
+        // empty
     }
 
-   
-    function setMinter(address _minter) external onlyOwner {
-        minter = _minter;
+    modifier onlyReceiver() {
+        require(msg.sender == receiver, "Not authorized");
+        _;
     }
 
-    // Minter can mint new tokens
-    function mint(address to, uint256 amount) external onlyOwner {
+    function setReceiver(address _receiver) external {
+        require(receiver == address(0), "Already set");
+        receiver = _receiver;
+    }
+
+    function mintTo(address to, uint256 amount) external onlyReceiver {
         _mint(to, amount);
     }
 
-    // Any address can burn their own tokens
-    function burn(address from, uint256 amount) external {
+     function burn(address from, uint256 amount) external  {
         _burn(from, amount);
     }
 }
