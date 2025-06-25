@@ -3,7 +3,6 @@ const fs = require("fs");
 require("dotenv").config();
 const { Trie } = require("@ethereumjs/trie");
 const { TransactionFactory } = require("@ethereumjs/tx");
-const { submitBlockHash } = require("./oracle");
 
 const SRC_RPC = "https://tan-devnetrpc2.tan.live";
 const DST_RPC = "https://eth-sepolia.g.alchemy.com/v2/B7X9gRjxfPZ9uOYogYWOy";
@@ -20,10 +19,14 @@ const endpointDstAddr = sepData.contracts.endpoint;
 const ulnAddress = sepData.contracts.uln;
 const receiverAddr = sepData.contracts.receiver;
 
+// Create providers and wallets
 const provSrc = new ethers.providers.JsonRpcProvider(SRC_RPC);
+const provDst = new ethers.providers.JsonRpcProvider(DST_RPC);
 const walletSrc = new ethers.Wallet(PRIVATE_KEY, provSrc);
-const walletDst = new ethers.Wallet(PRIVATE_KEY, new ethers.providers.JsonRpcProvider(DST_RPC));
-const sender = new ethers.Contract(senderAddr, senderABI, provSrc);
+const walletDst = new ethers.Wallet(PRIVATE_KEY, provDst);
+
+// Create contracts
+const sender = new ethers.Contract(senderAddr, senderABI, walletSrc);
 const endpointDst = new ethers.Contract(endpointDstAddr, endpointABI, walletDst);
 const uln = new ethers.Contract(ulnAddress, ulnABI, walletDst);
 
@@ -99,12 +102,11 @@ async function sendTransactionWithRetry(txData, maxRetries = 3) {
     } catch (error) {
       if (error.code === 'SERVER_ERROR' && error.body && error.body.includes('already known')) {
         console.log(`⚠️ Transaction already known (nonce ${txData.nonce}), skipping...`);
-        return null; // Transaction already submitted
+        return null;
       }
       
       if (error.code === 'NONCE_EXPIRED' || error.message.includes('nonce too low')) {
         console.log(`⚠️ Nonce too low, refreshing nonce and retrying... (attempt ${attempt + 1})`);
-        // Reset local nonce to force refresh
         localNonce = null;
         txData.nonce = await getNextNonce();
         incrementNonce();
@@ -112,12 +114,46 @@ async function sendTransactionWithRetry(txData, maxRetries = 3) {
       }
       
       if (attempt === maxRetries - 1) {
-        throw error; // Last attempt, throw the error
+        throw error;
       }
       
       console.log(`⚠️ Transaction failed (attempt ${attempt + 1}), retrying...`, error.message);
-      await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+      await new Promise(r => setTimeout(r, 2000));
     }
+  }
+}
+
+// FIXED: Submit block hash using only submitBlock function
+async function submitBlockToULN(srcChainId, blockNumber, blockHash, timestamp) {
+  try {
+    console.log("🛰 Submitting block to ULN:");
+    console.log("  - srcChainId:", srcChainId);
+    console.log("  - blockNumber:", blockNumber);
+    console.log("  - blockHash:", blockHash);
+    console.log("  - timestamp:", timestamp);
+
+    const gasParams = await getGasParams();
+    
+    // Use submitBlock function (the only one available in your ULN)
+    const tx = await uln.submitBlock(
+      srcChainId,
+      blockNumber,
+      blockHash,
+      timestamp,
+      {
+        gasLimit: 500000,
+        ...gasParams
+      }
+    );
+    
+    console.log("📤 Block submission TX:", tx.hash);
+    const receipt = await tx.wait();
+    console.log("✅ Block submitted successfully");
+    return receipt;
+    
+  } catch (error) {
+    console.error("❌ Failed to submit block to ULN:", error.message);
+    throw error;
   }
 }
 
@@ -143,7 +179,6 @@ async function bundleDummyTxsInSameBlock() {
     type: 0,
   };
 
-  // Create unique identifiers for transactions
   const tx1Hash = ethers.utils.keccak256(ethers.utils.RLP.encode([
     ethers.utils.hexlify(tx1.nonce),
     ethers.utils.hexlify(tx1.gasPrice),
@@ -161,7 +196,6 @@ async function bundleDummyTxsInSameBlock() {
     '0x'
   ]));
 
-  // Check if transactions are already pending
   if (pendingTxs.has(tx1Hash) || pendingTxs.has(tx2Hash)) {
     console.log('⚠️ Dummy transactions already pending, skipping...');
     return;
@@ -171,22 +205,15 @@ async function bundleDummyTxsInSameBlock() {
   pendingTxs.add(tx2Hash);
 
   try {
-    const signedTx1 = await walletSrc.signTransaction(tx1);
-    const signedTx2 = await walletSrc.signTransaction(tx2);
-
     await sendTransactionWithRetry(tx1);
     await sendTransactionWithRetry(tx2);
-
-    // Update local nonce
     localNonce = currentNonce + 2;
-
     console.log(`📤 Bundled dummy txs with nonce ${currentNonce} and ${currentNonce + 1}`);
     
-    // Clean up pending transactions after some time
     setTimeout(() => {
       pendingTxs.delete(tx1Hash);
       pendingTxs.delete(tx2Hash);
-    }, 60000); // Remove after 1 minute
+    }, 60000);
     
   } catch (error) {
     pendingTxs.delete(tx1Hash);
@@ -196,106 +223,189 @@ async function bundleDummyTxsInSameBlock() {
   }
 }
 
-sender.on("Send", async (...args) => {
-  const event = args[args.length - 1];
-  const { sender: from, nonce, dstChainId, dstAddress: to, payload } = event.args;
-  const txHash = event.transactionHash;
-
-  console.log("📨 New message TX:", txHash);
-  const receipt = await provSrc.getTransactionReceipt(txHash);
-  const initialBlock = await provSrc.getBlock(receipt.blockNumber);
-
-  let block = initialBlock;
-
-  if (block.transactions.length < 2) {
-    console.warn(`⚠️ Block ${block.number} has ${block.transactions.length} txs. Sending bundled dummy txs...`);
-    let found = false;
-
-    for (let i = 0; i < 10; i++) {
-      try {
-        await bundleDummyTxsInSameBlock();
-      } catch (error) {
-        console.error(`❌ Failed to bundle dummy txs (attempt ${i + 1}):`, error.message);
-        // Continue to next iteration instead of breaking
-      }
-      
-      console.log("⏳ Waiting 15s for new block...");
-      await new Promise(r => setTimeout(r, 15000));
-
-      const newBlock = await provSrc.getBlock("latest");
-      if (newBlock.transactions.length >= 2) {
-        block = newBlock;
-        console.log(`✅ Found block with >=2 txs: ${block.number}`);
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      console.error("❌ Could not get a block with >=2 txs.");
-      return;
-    }
-  }
-
-  const blockHash = block.hash;
-  const confirmations = await provSrc.getBlockNumber() - block.number;
-  if (confirmations < 3) {
-    console.log("⏳ Waiting for 3 confirmations...");
-    await new Promise(r => setTimeout(r, 30000));
-  }
-
-  const timestamp = block.timestamp;
-  await submitBlockHash(4442, block.number, blockHash, timestamp);
-
-  const raw = await provSrc.send("eth_getBlockByNumber", [ethers.utils.hexValue(block.number), true]);
-  const serializedTxs = raw.transactions.map(serializeTx);
-  const trie = new Trie();
-  for (let i = 0; i < serializedTxs.length; i++) {
-    await trie.put(encodeIndex(i), serializedTxs[i]);
-  }
-
-  const proof = await trie.createProof(encodeIndex(receipt.transactionIndex));
-  let proofBytes = ethers.utils.RLP.encode(proof);
-  let gasParams = await getGasParams();
-
-  console.log("trans");
-  console.log(block.transactions.length);
-  console.log("reciver add is", receiverAddr);
-  console.log("the 2nd thins is ", blockHash);
-  console.log("the proff bytes", proofBytes);
+async function setupEventListener() {
+  console.log("🎯 Setting up Send event listener...");
+  
+  // Add connection error handlers
+  provSrc.on("error", (error) => {
+    console.error("🔴 Provider error:", error);
+    console.log("🔄 Attempting to reconnect...");
+    setTimeout(setupEventListener, 5000);
+  });
 
   try {
-    const tx = await uln.validateTransactionProof(
-      4442,
-      receiverAddr,
-      500000,
-      blockHash,
-      proofBytes,
-      { gasLimit: 2_000_000, ...gasParams }
-    );
-    await tx.wait();
+    const filter = sender.filters.Send();
+    console.log("✅ Send event filter created:", filter);
+    
+    const currentBlock = await provSrc.getBlockNumber();
+    console.log(`📊 Current block: ${currentBlock}`);
+    
+    const fromBlock = Math.max(0, currentBlock - 100);
+    const historicalEvents = await sender.queryFilter(filter, fromBlock, currentBlock);
+    console.log(`📜 Found ${historicalEvents.length} historical Send events in last 100 blocks`);
+    
   } catch (error) {
-    console.warn("⚠️ RLP failed — trying encoded fallback...");
-    const fallbackProof = proof.map(p => ethers.utils.hexlify(p));
-    proofBytes = ethers.utils.RLP.encode(fallbackProof);
-    const tx = await uln.validateTransactionProof(
-      4442,
-      receiverAddr,
-      500000,
-      blockHash,
-      proofBytes,
-      { gasLimit: 2_000_000, ...await getGasParams() }
-    );
-    await tx.wait();
+    console.error("❌ Error setting up event filter:", error);
+    return;
   }
 
-  const rx = await endpointDst.receivePayload(4442, from, receiverAddr, nonce, payload, {
-    gasLimit: 2_000_000,
-    ...await getGasParams()
+  sender.on("Send", async (...args) => {
+    console.log("🚨 SEND EVENT DETECTED!");
+    console.log("📊 Event args length:", args.length);
+    
+    try {
+      const event = args[args.length - 1];
+      const { sender: from, nonce, dstChainId, dstAddress: to, payload } = event.args;
+      const txHash = event.transactionHash;
+
+      console.log("📨 New message TX:", txHash);
+      console.log("📊 Event details:");
+      console.log("  - From:", from);
+      console.log("  - Nonce:", nonce?.toString());
+      console.log("  - Dst Chain ID:", dstChainId?.toString());
+      console.log("  - Dst Address:", to);
+      console.log("  - Payload length:", payload?.length);
+      
+      // Get the receipt and block information
+      const receipt = await provSrc.getTransactionReceipt(txHash);
+      const initialBlock = await provSrc.getBlock(receipt.blockNumber);
+      let block = initialBlock;
+ 
+      // Check if the block contains enough transactions
+      if (block.transactions.length < 2) {
+        console.warn(`⚠️ Block ${block.number} has ${block.transactions.length} txs. Sending bundled dummy txs...`);
+        let found = false;
+
+        for (let i = 0; i < 10; i++) {
+          try {
+            await bundleDummyTxsInSameBlock();
+          } catch (error) {
+            console.error(`❌ Failed to bundle dummy txs (attempt ${i + 1}):`, error.message);
+          }
+          
+          console.log("⏳ Waiting 15s for new block...");
+          await new Promise(r => setTimeout(r, 15000));
+
+          const newBlock = await provSrc.getBlock("latest");
+          if (newBlock.transactions.length >= 2) {
+            block = newBlock;
+            console.log(`✅ Found block with >=2 txs: ${block.number}`);
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          console.error("❌ Could not get a block with >=2 txs.");
+          return;
+        }
+      }
+
+   
+let confirmations = 0;
+const targetBlock = block.number;
+
+console.log(`🎯 TARGET: Waiting for exactly 2 confirmations for block ${targetBlock}`);
+
+// Wait for exactly 2 confirmations with detailed logging
+while (confirmations < 2) {
+  const currentBlockNum = await provSrc.getBlockNumber();
+  confirmations = currentBlockNum - targetBlock;
+  
+  console.log(`📊 CONFIRMATION CHECK:`);
+  console.log(`   - Target Block: ${targetBlock}`);
+  console.log(`   - Current Block: ${currentBlockNum}`);
+  console.log(`   - Confirmations: ${confirmations}`);
+  console.log(`   - Need: ${2 - confirmations} more confirmations`);
+  
+  if (confirmations < 2) {
+    console.log(`⏳ Sleeping 3 seconds before next check...`);
+    await new Promise(r => setTimeout(r, 3000));
+  } else {
+    console.log(`✅ CONDITION MET: We have ${confirmations} confirmations (>= 2)`);
+    break;
+  }
+}
+
+// Immediately log the exact moment we proceed
+const finalCurrentBlock = await provSrc.getBlockNumber();
+const finalConfirmations = finalCurrentBlock - targetBlock;
+
+console.log(`🚀 PROCEEDING WITH BLOCK SUBMISSION:`);
+console.log(`   - Processing Block: ${targetBlock}`);
+console.log(`   - Current Block: ${finalCurrentBlock}`);
+console.log(`   - Final Confirmations: ${finalConfirmations}`);
+console.log(`   - Condition Met: ${finalConfirmations} >= 2 ✅`);
+
+      // Now, submit block using the block hash and timestamp
+      const blockHash = ethers.utils.hexZeroPad(block.hash, 32); // Ensure blockHash is bytes32
+      const timestamp = block.timestamp;
+
+      // if (confirmations < 3) {
+      //   console.log("⏳ Waiting for 3 confirmations...");
+      //   await new Promise(r => setTimeout(r, 30000));
+      // }
+      console.log("final conformation it is ",confirmations);
+
+      await submitBlockToULN(4442, block.number, blockHash, timestamp);
+
+      // Proceed with the rest of the logic
+      const raw = await provSrc.send("eth_getBlockByNumber", [ethers.utils.hexValue(block.number), true]);
+      const serializedTxs = raw.transactions.map(serializeTx);
+      const trie = new Trie();
+      for (let i = 0; i < serializedTxs.length; i++) {
+        await trie.put(encodeIndex(i), serializedTxs[i]);
+      }
+
+      const proof = await trie.createProof(encodeIndex(receipt.transactionIndex));
+      let proofBytes = ethers.utils.RLP.encode(proof);
+      let gasParams = await getGasParams();
+
+      console.log("📊 Processing details:");
+      console.log("  - Transactions count:", block.transactions.length);
+      console.log("  - Receiver address:", receiverAddr);
+      console.log("  - Block hash:", blockHash);
+      console.log("  - Proof bytes length:", proofBytes.length);
+      console.log("the proff byte is",proofBytes);
+
+      try {
+        const tx = await uln.validateTransactionProof(
+          4442,
+          receiverAddr,
+          500000,
+          blockHash,
+          proofBytes,
+          { gasLimit: 2_000_000, ...gasParams }
+        );
+        await tx.wait();
+      } catch (error) {
+        console.warn("⚠️ RLP failed — trying encoded fallback...");
+        const fallbackProof = proof.map(p => ethers.utils.hexlify(p));
+        proofBytes = ethers.utils.RLP.encode(fallbackProof);
+        const tx = await uln.validateTransactionProof(
+          4442,
+          receiverAddr,
+          500000,
+          blockHash,
+          proofBytes,
+          { gasLimit: 2_000_000, ...await getGasParams() }
+        );
+        await tx.wait();
+      }
+
+      const rx = await endpointDst.receivePayload(4442, from, receiverAddr, nonce, payload, {
+        gasLimit: 2_000_000,
+        ...await getGasParams()
+      });
+      await rx.wait();
+      console.log("✅ Payload delivered to Receiver UA");
+      
+    } catch (error) {
+      console.error("❌ Error processing Send event:", error);
+    }
   });
-  await rx.wait();
-  console.log("✅ Payload delivered to Receiver UA");
-});
+}
+
 
 (async () => {
   console.log("🟢 Relayer bot running…");
@@ -310,4 +420,10 @@ sender.on("Send", async (...args) => {
   // Initialize nonce
   await getNextNonce();
   console.log(`🔧 Initial nonce: ${localNonce}`);
+  
+  // Setup event listener
+  await setupEventListener();
+  
+  // Keep the process alive
+  console.log("👂 Bot is now listening for events...");
 })();
