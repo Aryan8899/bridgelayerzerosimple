@@ -84,4 +84,22 @@ interface ILayerZeroEndpoint is ILayerZeroUserApplicationConfig {
     // @notice get the lzReceive() LayerZero messaging library version
     // @param _userApplication - the contract address of the user application
     function getReceiveVersion(address _userApplication) external view returns (uint16);
+
+    // @notice Set default config for a specific chainId
+    // @param _chainId - the destination chain identifier
+    // @param _inboundProofLibraryVersion - inbound proof library version
+    // @param _inboundBlockConfirmations - inbound block confirmations
+    // @param _relayer - relayer address
+    // @param _outboundProofType - outbound proof type
+    // @param _outboundBlockConfirmations - outbound block confirmations
+    // @param _oracle - oracle address
+    function setDefaultConfigForChainId(
+        uint16 _chainId,
+        uint16 _inboundProofLibraryVersion,
+        uint64 _inboundBlockConfirmations,
+        address _relayer,
+        uint16 _outboundProofType,
+        uint64 _outboundBlockConfirmations,
+        address _oracle
+    ) external;
 }

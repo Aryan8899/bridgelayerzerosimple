@@ -1,4 +1,3 @@
-
 const { ethers, network } = require("hardhat");
 const fs = require("fs");
 
@@ -38,36 +37,42 @@ async function main() {
     contracts: {}
   };
 
+  // Deploy MockMessagingLibrary
   const MockLib = await ethers.getContractFactory("MockMessagingLibrary");
   const { contract: mockLib, gasUsed: g1 } = await deployWithGasEstimation("MockMessagingLibrary", MockLib, [], gasOverrides);
   deploymentData.contracts.library = mockLib.address;
 
+  // Deploy LayerZero Endpoint
   const Endpoint = await ethers.getContractFactory("Endpoint");
   const { contract: endpoint, gasUsed: g2 } = await deployWithGasEstimation("Endpoint", Endpoint, [lzChainId], gasOverrides);
   deploymentData.contracts.endpoint = endpoint.address;
 
-  const UltraLightNode = await ethers.getContractFactory("UltraLightNode");
-  const { contract: uln, gasUsed: g3 } = await deployWithGasEstimation("UltraLightNode", UltraLightNode, [endpoint.address], gasOverrides);
+  // Deploy NonceContract
+  const NonceContract = await ethers.getContractFactory("NonceContract");
+  const { contract: nonce, gasUsed: g7 } = await deployWithGasEstimation("NonceContract", NonceContract, [endpoint.address], gasOverrides);
+  deploymentData.contracts.nonce = nonce.address;
+
+  // Deploy UltraLightNodeV2
+  const UltraLightNode = await ethers.getContractFactory("UltraLightNodeV2");
+  const { contract: uln, gasUsed: g3 } = await deployWithGasEstimation("UltraLightNodeV2", UltraLightNode, [endpoint.address, nonce.address, lzChainId], gasOverrides);
   deploymentData.contracts.uln = uln.address;
 
-  const Relayer = await ethers.getContractFactory("Relayer");
+  // Deploy RelayerV2
+  const Relayer = await ethers.getContractFactory("RelayerV2");
   const { contract: relayer, gasUsed: g4 } = await deployWithGasEstimation("Relayer", Relayer, [], gasOverrides);
   deploymentData.contracts.relayer = relayer.address;
 
-  const tx1 = await uln.setRelayer(relayer.address, gasOverrides);
-  const rc1 = await tx1.wait();
-  console.log(`✅ ULN setRelayer: Gas used: ${rc1.gasUsed.toString()}`);
+  // Deploy LayerZeroOracle
+  const oracle = await ethers.getContractFactory("LayerZeroOracle");
+  const { contract: LayerZeroOracle, gasUsed: g6 } = await deployWithGasEstimation("LayerZeroOracle", oracle, [], gasOverrides);
+  deploymentData.contracts.oracle = LayerZeroOracle.address;
 
-  const tx2 = await endpoint.setULN(uln.address, gasOverrides);
-  const rc2 = await tx2.wait();
-  console.log(`✅ Endpoint linked to ULN: Gas used: ${rc2.gasUsed.toString()}`);
-
-  // ✅ Deploy WTAN
+  // Deploy WTAN (Wrapped Token)
   const WTAN = await ethers.getContractFactory("WTAN");
   const { contract: wtan, gasUsed: g5 } = await deployWithGasEstimation("WTAN", WTAN, [], gasOverrides);
   deploymentData.contracts.wtan = wtan.address;
 
-  const totalGas = g1.add(g2).add(g3).add(g4).add(rc1.gasUsed).add(rc2.gasUsed);
+  const totalGas = g1.add(g2).add(g3).add(g4).add(g5).add(g6).add(g7);
   const deploymentPath = `deployments/endpoint-${networkName}.json`;
 
   fs.mkdirSync("deployments", { recursive: true });

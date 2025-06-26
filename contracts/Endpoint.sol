@@ -35,6 +35,29 @@ contract Endpoint is Ownable, ILayerZeroEndpoint {
         ILayerZeroMessagingLibrary sendLibrary;
     }
 
+    mapping(uint16 => ApplicationConfiguration) public defaultAppConfig; // Store default config for each chain
+
+    // Structure to store configuration for each chain
+    struct ApplicationConfiguration {
+        uint16 inboundProofLibraryVersion;
+        uint64 inboundBlockConfirmations;
+        address relayer;
+        uint16 outboundProofType;
+        uint64 outboundBlockConfirmations;
+        address oracle;
+    }
+
+
+    event SetDefaultConfigForChainId(
+        uint16 _chainId,
+        uint16 _inboundProofLibraryVersion,
+        uint64 _inboundBlockConfirmations,
+        address _relayer,
+        uint16 _outboundProofType,
+        uint64 _outboundBlockConfirmations,
+        address _oracle
+    );
+
     struct StoredPayload {
         uint64 payloadLength;
         address dstAddress;
@@ -104,6 +127,40 @@ contract Endpoint is Ownable, ILayerZeroEndpoint {
     function setULN(address _uln) external {
     uln = _uln;
 }
+
+
+    // Set default config for a specific chainId
+  function setDefaultConfigForChainId(
+    uint16 _chainId,
+    uint16 _inboundProofLibraryVersion,
+    uint64 _inboundBlockConfirmations,
+    address _relayer,
+    uint16 _outboundProofType,
+    uint64 _outboundBlockConfirmations,
+    address _oracle
+) external override onlyOwner {
+        ApplicationConfiguration memory config = ApplicationConfiguration({
+            inboundProofLibraryVersion: _inboundProofLibraryVersion,
+            inboundBlockConfirmations: _inboundBlockConfirmations,
+            relayer: _relayer,
+            outboundProofType: _outboundProofType,
+            outboundBlockConfirmations: _outboundBlockConfirmations,
+            oracle: _oracle
+        });
+
+        // Set the default config for the chainId
+        defaultAppConfig[_chainId] = config;
+
+        emit SetDefaultConfigForChainId(
+            _chainId,
+            _inboundProofLibraryVersion,
+            _inboundBlockConfirmations,
+            _relayer,
+            _outboundProofType,
+            _outboundBlockConfirmations,
+            _oracle
+        );
+    }
 
 
 
